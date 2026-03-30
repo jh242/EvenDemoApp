@@ -60,6 +60,19 @@ _silenceTimer = Timer.periodic(Duration(seconds: 1), (_) {
 
 ---
 
+## Files to Delete
+
+| File | Reason |
+|------|--------|
+| `lib/controllers/bmp_update_manager.dart` | BMP feature removed |
+| `lib/services/features_services.dart` | BMP feature removed |
+| `lib/services/text_service.dart` | Manual text send removed |
+| `lib/views/features/bmp_page.dart` | BMP feature removed |
+| `lib/views/features/text_page.dart` | Manual text send removed |
+| `lib/views/features/notification/notification_page.dart` | Replaced by real notification system |
+
+---
+
 ## Files to Create / Modify
 
 | File | Action | Purpose |
@@ -67,15 +80,16 @@ _silenceTimer = Timer.periodic(Duration(seconds: 1), (_) {
 | `lib/services/cowork_relay_service.dart` | **CREATE** | HTTP/SSE client for the desktop relay |
 | `lib/services/api_claude_service.dart` | **CREATE** | Fallback direct Anthropic API client (streaming) |
 | `lib/models/claude_session.dart` | **CREATE** | Holds relay session ID + offline flag + last exchange |
+| `lib/models/notify_model.dart` | **MOVE** from `lib/views/features/notification/notify_model.dart` | Notification data models |
 | `lib/services/hud_service.dart` | **CREATE** | Look-up HUD: display logic + auto-dismiss timer |
+| `lib/services/notification_service.dart` | **CREATE** | Auto-forward phone notifications to glasses |
 | `lib/services/evenai.dart` | **MODIFY** | Replace DeepSeek, double-tap, silence detection, dispatch, streaming |
 | `lib/ble_manager.dart` | **MODIFY** | Double-tap toggle; triple-tap reset; IMU look-up event (TBD cmd) |
+| `lib/views/features_page.dart` | **MODIFY** | Remove BMP/Text/Notification buttons; add Settings + Notification Settings |
 | `lib/views/settings_page.dart` | **CREATE** | API key, relay URL, secret token, silence threshold |
+| `lib/views/notification_settings_page.dart` | **CREATE** | App whitelist management |
 | `tools/relay/server.js` | **CREATE** | Node.js relay: spawns `claude -p` subprocess, SSE response |
 | `pubspec.yaml` | **MODIFY** | Add `shared_preferences: ^2.3.0` |
-
-**Out of scope (existing demo features, left untouched):**
-BMP image send, Notification send, Text send — these remain in the app as-is but are not part of this implementation.
 
 ---
 
@@ -400,6 +414,98 @@ On save: update `shared_preferences` + reload values in `EvenAI` instance.
 dependencies:
   shared_preferences: ^2.3.0   # add this line
 ```
+
+---
+
+## Notification System
+
+### Overview
+
+Replace the manual demo notification sender with an automatic system that intercepts real phone notifications and forwards them to the glasses.
+
+The existing BLE protocol for notifications is already implemented in `Proto.sendNotify()` and `Proto.sendNewAppWhiteListJson()` — the demo page just triggered these manually. The missing piece is the native notification listener that fires automatically.
+
+### Architecture
+
+```
+iOS/Android notification arrives
+  ↓ native NotificationListenerService / UNUserNotificationCenter
+  ↓ MethodChannel / EventChannel → Flutter
+  ↓ NotificationService (filter by whitelist)
+  ↓ Proto.sendNotify() → BLE → G1 glasses display
+```
+
+### Native layer (existing or to be wired up)
+
+**Android:** `NotificationListenerService` — the whitelist concept in the existing demo code implies this is already scaffolded in the native Android layer. Needs an `EventChannel` wired to Flutter to deliver incoming notifications.
+
+**iOS:** `UNUserNotificationCenterDelegate` or a notification service extension. More restricted than Android — only foreground notifications can be intercepted without an extension.
+
+Both platforms: emit notification events to Flutter via `EventChannel('eventNotificationReceive')`, delivering a map of `{appId, appName, title, body, timestamp}`.
+
+### `lib/services/notification_service.dart` (new)
+
+```dart
+class NotificationService {
+  static NotificationService? _instance;
+  static NotificationService get get => _instance ??= NotificationService._();
+  NotificationService._();
+
+  static const _eventChannel = EventChannel('eventNotificationReceive');
+  List<String> _whitelist = []; // app identifiers
+
+  void startListening() {
+    _loadWhitelist();
+    _eventChannel.receiveBroadcastStream().listen((event) {
+      final notify = NotifyModel.fromMap(event);
+      if (notify == null) return;
+      if (_whitelist.isEmpty || _whitelist.contains(notify.appIdentifier)) {
+        _forwardToGlasses(notify);
+      }
+    });
+  }
+
+  Future<void> _forwardToGlasses(NotifyModel notify) async {
+    if (!BleManager.get().isConnected) return;
+    await Proto.sendNotify(notify.toMap(), _nextNotifyId());
+  }
+
+  Future<void> setWhitelist(List<String> appIds) async {
+    _whitelist = appIds;
+    await _saveWhitelist();
+    if (BleManager.get().isConnected) {
+      final model = NotifyWhitelistModel(
+          appIds.map((id) => NotifyAppModel(id, id)).toList());
+      await Proto.sendNewAppWhiteListJson(model.toJson());
+    }
+  }
+}
+```
+
+### `lib/models/notify_model.dart` (moved)
+
+Move `notify_model.dart` from `lib/views/features/notification/` to `lib/models/`. No code changes — just relocating to the right layer. Update all imports.
+
+### `lib/views/notification_settings_page.dart` (new)
+
+Simple settings page for managing the notification whitelist:
+
+- List of whitelisted app IDs (editable)
+- "Add app" button (text field for package name / bundle ID)
+- Toggle to disable notifications entirely
+- "Push whitelist to glasses" button (also fires automatically on connect)
+
+### `lib/views/features_page.dart` (modify)
+
+Strip out BMP, Text, and Notification (demo) buttons. Replace with:
+- **Settings** → `SettingsPage` (API key, relay URL, etc.)
+- **Notifications** → `NotificationSettingsPage` (whitelist)
+
+### Startup wiring (`lib/main.dart` or `BleManager._onGlassesConnected`)
+
+On glasses connect:
+1. `NotificationService.get.startListening()` — begin forwarding notifications
+2. Push current whitelist to glasses via `Proto.sendNewAppWhiteListJson()`
 
 ---
 
