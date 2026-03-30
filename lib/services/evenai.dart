@@ -171,8 +171,6 @@ class EvenAI {
       return;
     }
 
-    isEvenAISyncing.value = false;
-
     String fullAnswer;
     try {
       final relayStream =
@@ -180,6 +178,7 @@ class EvenAI {
       _session.isOffline = false;
       fullAnswer = await startStreamingReply(relayStream);
     } on RelayAuthException {
+      isEvenAISyncing.value = false;
       startSendReply('Relay auth failed. Check secret token in settings.');
       return;
     } on RelayOfflineException {
@@ -189,6 +188,7 @@ class EvenAI {
       fullAnswer = await startStreamingReply(claudeStream);
     }
 
+    isEvenAISyncing.value = false;
     _session.addUser(combinedText);
     _session.addAssistant(fullAnswer);
     _session.lastQuery = combinedText;
@@ -204,7 +204,7 @@ class EvenAI {
     final prefix = _session.isOffline ? '[OFFLINE] ' : '';
 
     await for (final chunk in textStream) {
-      if (!isRunning) break;
+      if (!isRunning) break; // user exited; startSendReply below is a safe no-op
       _streamAccumulated += chunk;
 
       _streamDebounce?.cancel();

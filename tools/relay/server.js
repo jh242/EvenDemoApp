@@ -21,9 +21,18 @@ const server = http.createServer((req, res) => {
     }
   }
 
+  const MAX_BODY = 1024 * 64; // 64 KB — ample for any voice query
   let body = '';
-  req.on('data', (chunk) => { body += chunk; });
+  req.on('data', (chunk) => {
+    body += chunk;
+    if (body.length > MAX_BODY) {
+      res.writeHead(413, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Request too large' }));
+      req.destroy();
+    }
+  });
   req.on('end', () => {
+    if (res.writableEnded) return; // already rejected above
     let parsed;
     try {
       parsed = JSON.parse(body);
