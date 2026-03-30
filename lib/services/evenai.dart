@@ -108,7 +108,7 @@ class EvenAI {
     // restart to avoid ble data conflict
     BleManager.get().startSendBeatHeart();
 
-    startListening(); 
+    startListening();
     
     // avoid duplicate ble command in short time, especially android
     int currentTime = DateTime.now().millisecondsSinceEpoch;
