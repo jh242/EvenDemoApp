@@ -18,45 +18,38 @@ class NotificationService {
 
   static const _prefsKey = 'notification_whitelist';
 
+  late SharedPreferences _prefs;
   List<String> _whitelist = [];
 
   /// Load persisted whitelist from prefs. Call once at app startup.
   Future<void> init() async {
-    await _loadWhitelist();
-  }
-
-  /// Update the app whitelist. Empty list = allow all apps.
-  Future<void> setWhitelist(List<String> appIds) async {
-    _whitelist = List.from(appIds);
-    await _saveWhitelist();
-    await pushWhitelistToGlasses();
-  }
-
-  /// Push current whitelist to glasses. Call on connect and after setWhitelist.
-  Future<void> pushWhitelistToGlasses() async {
-    if (!BleManager.get().isConnected) return;
-    final apps = _whitelist.map((id) => NotifyAppModel(id, id)).toList();
-    final model = NotifyWhitelistModel(apps);
-    await Proto.sendNewAppWhiteListJson(model.toJson());
-  }
-
-  List<String> get whitelist => List.unmodifiable(_whitelist);
-
-  Future<void> _loadWhitelist() async {
-    final prefs = await SharedPreferences.getInstance();
-    final stored = prefs.getString(_prefsKey);
+    _prefs = await SharedPreferences.getInstance();
+    final stored = _prefs.getString(_prefsKey);
     if (stored != null) {
       try {
-        final decoded = jsonDecode(stored) as List;
-        _whitelist = decoded.cast<String>();
+        _whitelist = (jsonDecode(stored) as List).cast<String>();
       } catch (_) {
         _whitelist = [];
       }
     }
   }
 
-  Future<void> _saveWhitelist() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_prefsKey, jsonEncode(_whitelist));
+  /// Update the app whitelist. Empty list = allow all apps.
+  /// Saves to prefs immediately; pushes to glasses in the background.
+  Future<void> setWhitelist(List<String> appIds) async {
+    _whitelist = List.from(appIds);
+    await _prefs.setString(_prefsKey, jsonEncode(_whitelist));
+    pushWhitelistToGlasses(); // fire-and-forget — doesn't block UI
   }
+
+  /// Push current whitelist to glasses. Called on connect and after setWhitelist.
+  Future<void> pushWhitelistToGlasses() async {
+    if (!BleManager.get().isConnected) return;
+    final model = NotifyWhitelistModel(
+      _whitelist.map((id) => NotifyAppModel(id, id)).toList(),
+    );
+    await Proto.sendNewAppWhiteListJson(model.toJson());
+  }
+
+  List<String> get whitelist => List.unmodifiable(_whitelist);
 }

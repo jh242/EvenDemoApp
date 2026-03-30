@@ -6,15 +6,16 @@ import 'package:demo_ai_even/views/home_page.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
 
-void main() {
-  BleManager.get();
+  final ble = BleManager.get();
   Get.put(EvenaiModelController());
 
-  NotificationService.get.init();
+  await NotificationService.get.init();
 
-  BleManager.get().onStatusChanged = () {
-    if (BleManager.get().isConnected) {
+  ble.onStatusChanged = () {
+    if (ble.isConnected) {
       NotificationService.get.pushWhitelistToGlasses();
     }
   };
@@ -30,7 +31,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: HomePage(), 
+      home: HomePage(),
     );
   }
 }
