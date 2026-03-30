@@ -64,14 +64,18 @@ _silenceTimer = Timer.periodic(Duration(seconds: 1), (_) {
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `lib/services/cowork_relay_service.dart` | **CREATE** | HTTP client for the desktop relay |
-| `lib/services/api_claude_service.dart` | **CREATE** | Fallback direct Anthropic API client |
-| `lib/models/claude_session.dart` | **CREATE** | Holds relay session ID + offline flag |
-| `lib/services/evenai.dart` | **MODIFY** | Replace DeepSeek, tap-to-toggle, silence detection, dispatch |
-| `lib/ble_manager.dart` | **MODIFY** | Tap = state-aware toggle; triple-tap = reset session |
-| `lib/views/settings_page.dart` | **CREATE** | API key, relay URL, secret token config |
-| `tools/relay/server.js` | **CREATE** | Node.js relay: spawns `claude -p` subprocess |
+| `lib/services/cowork_relay_service.dart` | **CREATE** | HTTP/SSE client for the desktop relay |
+| `lib/services/api_claude_service.dart` | **CREATE** | Fallback direct Anthropic API client (streaming) |
+| `lib/models/claude_session.dart` | **CREATE** | Holds relay session ID + offline flag + last exchange |
+| `lib/services/hud_service.dart` | **CREATE** | Look-up HUD: display logic + auto-dismiss timer |
+| `lib/services/evenai.dart` | **MODIFY** | Replace DeepSeek, double-tap, silence detection, dispatch, streaming |
+| `lib/ble_manager.dart` | **MODIFY** | Double-tap toggle; triple-tap reset; IMU look-up event (TBD cmd) |
+| `lib/views/settings_page.dart` | **CREATE** | API key, relay URL, secret token, silence threshold |
+| `tools/relay/server.js` | **CREATE** | Node.js relay: spawns `claude -p` subprocess, SSE response |
 | `pubspec.yaml` | **MODIFY** | Add `shared_preferences: ^2.3.0` |
+
+**Out of scope (existing demo features, left untouched):**
+BMP image send, Notification send, Text send — these remain in the app as-is but are not part of this implementation.
 
 ---
 
@@ -399,6 +403,132 @@ dependencies:
 
 ---
 
+## Look-Up HUD
+
+### Overview
+
+When the user looks up, the glasses briefly show a status line + the last Claude exchange. Auto-dismisses after 5 seconds. Designed to be glanceable — no interaction required.
+
+```
+14:32 | Listening...
+─────────────────────
+You: what files are in
+this directory?
+3 dart files, 1 pubspec,
+2 asset images
+```
+
+Line 1: `HH:MM | <AI state>`
+Lines 2–5: last query (truncated) + last answer (truncated), fitted to 488px width
+
+### Prerequisite: IMU BLE command (TBD)
+
+The G1 glasses have an IMU but the demo protocol does not document a BLE command for head gesture / accelerometer data. Before implementing, we need to discover the command via one of:
+
+1. **BLE sniffing** — run the official Even app, use a BLE sniffer (e.g. nRF Sniffer, Wireshark + BLE adapter) to capture packets sent when tilting the head up
+2. **Even Realities developer docs** — check if an SDK or extended protocol doc exists
+3. **Probe undocumented commands** — the existing `default: print("Unknown Ble Event")` in `_handleReceivedData` would catch any undocumented events; log all unknown packets while using the official app
+
+Until the command is known, `HudService` is implemented but the BLE trigger line in `ble_manager.dart` is left as a `// TODO: case <IMU_CMD>:` placeholder.
+
+### `lib/services/hud_service.dart` (new)
+
+```dart
+class HudService {
+  static HudService? _instance;
+  static HudService get get => _instance ??= HudService._();
+  HudService._();
+
+  Timer? _dismissTimer;
+  static const int hudDurationSecs = 5;
+
+  Future<void> showHud(ClaudeSession session) async {
+    _dismissTimer?.cancel();
+
+    final now = TimeOfDay.now();
+    final timeStr = '${now.hour.toString().padLeft(2,'0')}:${now.minute.toString().padLeft(2,'0')}';
+    final stateStr = _aiStateLabel(session);
+    final statusLine = '$timeStr | $stateStr';
+
+    final lastQuery = session.lastQuery ?? '';
+    final lastAnswer = session.lastAnswer ?? '';
+    final body = lastQuery.isEmpty ? '' : 'You: $lastQuery\n$lastAnswer';
+
+    final hudText = body.isEmpty ? statusLine : '$statusLine\n$body';
+
+    // Reuse EvenAI's existing send pipeline — 0x70 = Text Show status
+    await EvenAI.get.sendHudText(hudText);
+
+    // Auto-dismiss after hudDurationSecs
+    _dismissTimer = Timer(Duration(seconds: hudDurationSecs), () {
+      Proto.exit();
+    });
+  }
+
+  String _aiStateLabel(ClaudeSession session) {
+    if (EvenAI.get.isReceivingAudio) return 'Listening...';
+    if (EvenAI.isEvenAISyncing.value) return 'Thinking...';
+    if (EvenAI.get.isRunning) return 'Displaying';
+    if (session.relaySessionId != null) return 'Claude ready';
+    return session.isOffline ? 'Offline' : 'Claude ready';
+  }
+}
+```
+
+### `lib/models/claude_session.dart` (add fields)
+
+```dart
+String? lastQuery;    // last question asked — shown in HUD
+String? lastAnswer;   // last response — truncated in HUD
+```
+
+Set in `evenai.dart` after `recordOverByOS()` completes:
+```dart
+_session.lastQuery = combinedText;
+_session.lastAnswer = fullAnswer;
+```
+
+### `lib/ble_manager.dart` (add IMU handler)
+
+```dart
+// TODO: replace <IMU_LOOKUP_CMD> with actual command once discovered
+// case <IMU_LOOKUP_CMD>:
+//   HudService.get.showHud(EvenAI.get.session);
+//   break;
+```
+
+### `sendHudText()` in `evenai.dart`
+
+Thin wrapper that sends text using the existing `0x70` (Text Show) newscreen status rather than `0x30`/`0x40` (Even AI status), so the glasses treat it as a standalone display, not part of an AI session:
+
+```dart
+Future<void> sendHudText(String text) async {
+  final lines = EvenAIDataMethod.measureStringList(text);
+  final display = lines.take(5).map((l) => '$l\n').join();
+  await Proto.sendEvenAIData(display,
+      newScreen: EvenAIDataMethod.transferToNewScreen(0x01, 0x70),
+      pos: 0, current_page_num: 1, max_page_num: 1);
+}
+```
+
+### Future extensibility
+
+`HudService.showHud()` currently takes `ClaudeSession` for content. To make it context-aware later, introduce a `HudContentProvider` interface:
+
+```dart
+abstract class HudContentProvider {
+  Future<String> buildHudText(ClaudeSession session);
+}
+```
+
+Swap in implementations without touching `HudService`:
+- `SimpleHudContentProvider` — time + last chat (current)
+- `CalendarHudContentProvider` — time + next calendar event
+- `LocationHudContentProvider` — time + nearby context
+- `ClaudeHudContentProvider` — ask Claude for a contextual summary (relay call)
+
+---
+
 ## Session Memory
 
 Memory is fully owned by Claude Code on the desktop:
@@ -422,3 +552,4 @@ Memory is fully owned by Claude Code on the desktop:
 8. **Live streaming display**: ask a long question → text appears word by word on glasses (debounced at 250ms); last 5 lines always visible, older lines scroll off; after stream ends switches to full paginated view
 9. **E2E on device**: tap, say "what files are in this directory", 2s silence → relay running in project root → glasses display file list progressively, no `[OFFLINE]`
 10. **Web search E2E**: tap, say "what is today's weather in London", 2s silence → Claude uses WebSearch → glasses show weather progressively as answer streams in
+11. **Look-up HUD**: (once IMU command discovered) tilt head up → glasses show `HH:MM | Claude ready` + last exchange for 5s then auto-dismiss
