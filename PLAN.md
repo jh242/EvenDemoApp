@@ -32,12 +32,12 @@ The relay server runs on the user's desktop, in the CWD of their project. Claude
 Rather than hold-to-talk (hold bar while speaking), the app uses **tap-to-toggle** with **auto-stop on silence**:
 
 ```
-IDLE ──[tap]──► RECORDING ──[tap OR silence timeout]──► THINKING ──[answer ready]──► DISPLAYING
-                                  └──[30s max]──────────────────────────────────────────────┘
+IDLE ──[double-tap]──► RECORDING ──[double-tap OR silence timeout]──► THINKING ──[answer ready]──► DISPLAYING
+                                        └──[30s max]──────────────────────────────────────────────────────┘
 DISPLAYING ──[tap L]──► prev page
 DISPLAYING ──[tap R]──► next page
-DISPLAYING / any state ──[double-tap]──► IDLE
-IDLE / DISPLAYING ──[triple-tap]──► reset session
+DISPLAYING ──[triple-tap]──► IDLE (exit)
+IDLE / DISPLAYING ──[triple-tap]──► reset session + IDLE
 ```
 
 "Hey Even" hardware wake word (built into G1 firmware) fires `0xF5 0x17` — same as long-press — so it also activates recording without any phone-side filtering.
@@ -252,24 +252,31 @@ void resetSession() {
 
 ### 6. `lib/ble_manager.dart` (modify)
 
-**`case 1:` becomes state-aware** (single tap):
+**`case 0:` (double-tap) becomes recording toggle:**
 ```dart
-case 1:
+case 0:
   if (EvenAI.get.isReceivingAudio) {
-    // tap while recording → stop and send
+    // double-tap while recording → stop and send
     EvenAI.get.recordOverByOS();
   } else if (!EvenAI.get.isRunning) {
-    // tap while idle → start recording
+    // double-tap while idle → start recording
     EvenAI.get.toStartEvenAIByOS();
   } else {
-    // tap while displaying result → page navigation (existing)
-    if (res.lr == 'L') EvenAI.get.lastPageByTouchpad();
-    else EvenAI.get.nextPageByTouchpad();
+    // double-tap while displaying → exit (existing App.get.exitAll())
+    App.get.exitAll();
   }
   break;
 ```
 
-**Triple-tap (cases 4 & 5):**
+**`case 1:` (single tap) — page navigation only (no change to existing logic):**
+```dart
+case 1:
+  if (res.lr == 'L') EvenAI.get.lastPageByTouchpad();
+  else EvenAI.get.nextPageByTouchpad();
+  break;
+```
+
+**Triple-tap (cases 4 & 5) — reset session:**
 ```dart
 case 4:
 case 5:
@@ -318,8 +325,8 @@ Memory is fully owned by Claude Code on the desktop:
 
 ## Verification
 
-1. **Tap-to-toggle**: tap once → mic opens → speak → silence for 2s → auto-sends to relay
-2. **Tap-to-stop**: tap once → mic opens → tap again → immediately sends (no waiting for silence)
+1. **Double-tap-to-toggle**: double-tap → mic opens → speak → silence for 2s → auto-sends to relay
+2. **Double-tap-to-stop**: double-tap → mic opens → double-tap again → immediately sends (no waiting for silence)
 3. **Relay server**: `curl -X POST localhost:9090/query -d '{"message":"what is 2+2"}' -H 'Content-Type: application/json'` → `{ response: "4", session_id: "..." }`
 4. **Session continuity**: two queries with same `session_id` → second response references first
 5. **Offline fallback**: relay URL pointing at dead port → response has `[OFFLINE]` prefix
