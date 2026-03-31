@@ -278,7 +278,6 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
 
         centralManager.connect(left, options: [CBConnectPeripheralOptionNotifyOnDisconnectionKey: true])
         centralManager.connect(right, options: [CBConnectPeripheralOptionNotifyOnDisconnectionKey: true])
-
         result(true)
     }
 
@@ -346,8 +345,8 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         //print("\(Date()) didUpdateValueFor------\(peripheral.identifier.uuidString)----\(peripheral.name)-----\(characteristic.value)--")
-        let data = characteristic.value
-        self.getCommandValue(data: data!,cbPeripheral: peripheral)
+        guard let data = characteristic.value else { return }
+        self.getCommandValue(data: data, cbPeripheral: peripheral)
     }
     
     func getCommandValue(data:Data,cbPeripheral:CBPeripheral? = nil){
@@ -371,7 +370,7 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
                 dictionary["lr"] = legStr
                 dictionary["data"] = data
 
-                self.blueInfoSink(dictionary)
+                self.blueInfoSink?(dictionary)
                 break
         }
     }

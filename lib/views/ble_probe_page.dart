@@ -48,6 +48,20 @@ class _BleProbePageState extends State<BleProbePage> {
     }
   }
 
+  Future<void> _probeRaw(String label, List<int> bytes) async {
+    if (_sending) return;
+    setState(() {
+      _sending = true;
+      _log.insert(0, '→ $label ...');
+    });
+    try {
+      final resp = await Proto.probeRaw(bytes);
+      setState(() => _log.insert(0, '← $label: $resp'));
+    } finally {
+      setState(() => _sending = false);
+    }
+  }
+
   void _clearLog() => setState(() => _log.clear());
 
   @override
@@ -78,6 +92,27 @@ class _BleProbePageState extends State<BleProbePage> {
                   _probeButton('Send 0x39', 0x39),
                   const SizedBox(width: 8),
                   _probeButton('Send 0x50', 0x50),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Head-up / Dashboard probes:',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  _rawProbeButton('0x0B off', [0x0B, 30, 0x00]),
+                  const SizedBox(width: 8),
+                  _rawProbeButton('0x0B on', [0x0B, 30, 0x01]),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  _rawProbeButton('0x06 0x00', [0x06, 0x00]),
+                  const SizedBox(width: 8),
+                  _rawProbeButton('0x06 0x01', [0x06, 0x01]),
                 ],
               ),
               const SizedBox(height: 12),
@@ -120,6 +155,21 @@ class _BleProbePageState extends State<BleProbePage> {
   Widget _probeButton(String label, int cmd) => Expanded(
         child: GestureDetector(
           onTap: _sending ? null : () => _probe(cmd),
+          child: Container(
+            height: 44,
+            decoration: BoxDecoration(
+              color: _sending ? Colors.grey.shade300 : Colors.white,
+              borderRadius: BorderRadius.circular(5),
+            ),
+            alignment: Alignment.center,
+            child: Text(label, style: const TextStyle(fontSize: 14)),
+          ),
+        ),
+      );
+
+  Widget _rawProbeButton(String label, List<int> bytes) => Expanded(
+        child: GestureDetector(
+          onTap: _sending ? null : () => _probeRaw(label, bytes),
           child: Container(
             height: 44,
             decoration: BoxDecoration(

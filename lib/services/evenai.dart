@@ -64,8 +64,6 @@ class EvenAI {
   DateTime _lastTranscriptChange = DateTime.now();
   int silenceThresholdSecs = 2;
   String _streamAccumulated = '';
-  bool _streamSendInFlight = false;
-  Timer? _streamDebounce;
 
   static final StreamController<String> _textStreamController = StreamController<String>.broadcast();
   static Stream<String> get textStream => _textStreamController.stream;
@@ -199,37 +197,16 @@ class EvenAI {
 
   Future<String> startStreamingReply(Stream<String> textStream) async {
     _streamAccumulated = '';
-    _streamSendInFlight = false;
 
     final prefix = _session.isOffline ? '[OFFLINE] ' : '';
 
+    // Show a simple status while waiting for the full response
+    await sendHudText('Thinking...');
+
     await for (final chunk in textStream) {
-      if (!isRunning) break; // user exited; startSendReply below is a safe no-op
+      if (!isRunning) break;
       _streamAccumulated += chunk;
-
-      _streamDebounce?.cancel();
-      _streamDebounce = Timer(const Duration(milliseconds: 250), () {
-        if (_streamSendInFlight) return;
-        _streamSendInFlight = true;
-
-        final displayText = prefix + _streamAccumulated;
-        WidgetsBinding.instance.addPostFrameCallback((_) async {
-          if (!isRunning) {
-            _streamSendInFlight = false;
-            return;
-          }
-          final lines = EvenAIDataMethod.measureStringList(displayText);
-          final last5 =
-              lines.length > 5 ? lines.sublist(lines.length - 5) : lines;
-          final screen = last5.map((l) => '$l\n').join();
-          await sendEvenAIReply(screen, 0x01, 0x70, 0);
-          _streamSendInFlight = false;
-        });
-      });
     }
-
-    _streamDebounce?.cancel();
-    _streamDebounce = null;
 
     final finalText = prefix + _streamAccumulated;
     await startSendReply(finalText);
@@ -268,10 +245,10 @@ class EvenAI {
     _currentLine = 0;
     list = EvenAIDataMethod.measureStringList(text);
 
-    String ryplyWords =
-        list.sublist(0, min(3, list.length)).map((str) => '$str\n').join();
-    String headString = '\n\n';
-    ryplyWords = headString + ryplyWords;
+    final contentCount = min(3, list.length) as int;
+    final padLines = List.filled(5 - contentCount, ' \n');
+    final contentLines = list.sublist(0, contentCount).map((str) => '$str\n');
+    String ryplyWords = [...padLines, ...contentLines].join();
 
     // After sending the network error prompt glasses, exit automatically
     await sendEvenAIReply(ryplyWords, 0x01, 0x60, 0);
@@ -282,44 +259,13 @@ class EvenAI {
     _currentLine = 0;
     list = EvenAIDataMethod.measureStringList(text);
    
-    if (list.length < 4) {
-      String startScreenWords =
-          list.sublist(0, min(3, list.length)).map((str) => '$str\n').join();
-      String headString = '\n\n';
-      startScreenWords = headString + startScreenWords;
+    if (list.length <= 5) {
+      // Pad short responses to 5 lines with leading blank lines using spaces
+      final padCount = 5 - list.length;
+      final padLines = List.filled(padCount, ' \n');
+      final contentLines = list.map((str) => '$str\n');
+      String startScreenWords = [...padLines, ...contentLines].join();
 
-      // The glasses need to have 0x30 before they can process 0x40
-      bool isSuccess = await sendEvenAIReply(startScreenWords, 0x01, 0x30, 0);
-      
-      // Send 0x40 after 3 seconds
-      await Future.delayed(Duration(seconds: 3));
-      // If already switched to manual mode, no need to send 0x40.
-      if (_isManual) {
-        return;
-      }
-      isSuccess = await sendEvenAIReply(startScreenWords, 0x01, 0x40, 0);
-      return;
-    }
-    if (list.length == 4) {
-      String startScreenWords =
-          list.sublist(0, 4).map((str) => '$str\n').join();
-      String headString = '\n';
-      startScreenWords = headString + startScreenWords;
-
-      // // The glasses need to have 0x30 before they can process 0x40
-      bool isSuccess = await sendEvenAIReply(startScreenWords, 0x01, 0x30, 0);
-      await Future.delayed(Duration(seconds: 3));
-      if (_isManual) {
-        return;
-      }
-      isSuccess = await sendEvenAIReply(startScreenWords, 0x01, 0x40, 0);
-      return;
-    }
-
-    if (list.length == 5) {
-      String startScreenWords =
-          list.sublist(0, 5).map((str) => '$str\n').join();
-      // // The glasses need to have 0x30 before they can process 0x40
       bool isSuccess = await sendEvenAIReply(startScreenWords, 0x01, 0x30, 0);
       await Future.delayed(Duration(seconds: 3));
       if (_isManual) {
@@ -454,20 +400,11 @@ class EvenAI {
 
   // When there is only one page of text, click the page turn TouchBar
   Future manualForJustOnePage() async {
-    if (list.length < 4) {
-      String screenWords =
-          list.sublist(0, min(3, list.length)).map((str) => '$str\n').join();
-      String headString = '\n\n';
-      screenWords = headString + screenWords;
-
-      await sendEvenAIReply(screenWords, 0x01, 0x50, 0);
-      return;
-    }
-
-    if (list.length == 4) {
-      String screenWords = list.sublist(0, 4).map((str) => '$str\n').join();
-      String headString = '\n';
-      screenWords = headString + screenWords;
+    if (list.length <= 5) {
+      final contentCount = min(5, list.length) as int;
+      final padLines = List.filled(5 - contentCount, ' \n');
+      final contentLines = list.sublist(0, contentCount).map((str) => '$str\n');
+      String screenWords = [...padLines, ...contentLines].join();
 
       await sendEvenAIReply(screenWords, 0x01, 0x50, 0);
       return;
@@ -505,10 +442,7 @@ class EvenAI {
     retryCount = 0;
     _silenceTimer?.cancel();
     _silenceTimer = null;
-    _streamDebounce?.cancel();
-    _streamDebounce = null;
     _streamAccumulated = '';
-    _streamSendInFlight = false;
     _session.reset();
   }
 

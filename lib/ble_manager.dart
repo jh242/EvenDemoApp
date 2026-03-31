@@ -173,20 +173,18 @@ class BleManager {
       _bleEventLog.add('[${DateTime.now().toIso8601String().substring(11, 23)}] $hexEvent');
 
       switch (notifyIndex) {
-        case 0x00: // DISPLAY_READY per MentraOS; 0x00 also fires as gesture in some firmware
-          if (EvenAI.get.isReceivingAudio) {
-            EvenAI.get.recordOverByOS();
-          } else if (!EvenAI.isRunning) {
-            EvenAI.get.toStartEvenAIByOS();
-          } else {
-            App.get.exitAll();
-          }
+        case 0x00: // DISPLAY_READY — not a gesture on stock Even firmware
           break;
         case 0x01: // SINGLE_TAP / page change
           if (res.lr == 'L') {
             EvenAI.get.lastPageByTouchpad();
           } else {
             EvenAI.get.nextPageByTouchpad();
+          }
+          break;
+        case 0x02: // HEAD_UP — start recording (R arm only)
+          if (res.lr == 'R' && !EvenAI.get.isReceivingAudio) {
+            EvenAI.get.toStartEvenAIByOS();
           }
           break;
         case 0x04: // SILENCED
@@ -199,7 +197,8 @@ class BleManager {
         case 0x18: // TRIGGER_FOR_STOP_RECORDING
           EvenAI.get.recordOverByOS();
           break;
-        case 0x20: // DOUBLE_TAP per MentraOS — ignored on stock Even firmware
+        case 0x20: // DOUBLE_TAP — exit only
+          App.get.exitAll();
           break;
         default:
           print("Unhandled 0xF5 event: 0x${notifyIndex.toRadixString(16).padLeft(2, '0')}");

@@ -142,6 +142,14 @@ class Proto {
     }
   }
 
+  /// Set the head-up angle threshold (0–60 degrees).
+  /// The glasses fire 0xF5 0x02 when the user tilts their head above this angle.
+  static Future<void> setHeadUpAngle(int angle) async {
+    final clamped = angle.clamp(0, 60);
+    final data = Uint8List.fromList([0x0B, clamped, 0x01]);
+    await BleManager.sendBoth(data);
+  }
+
   static List<Uint8List> _getPackList(int cmd, Uint8List data,
       {int count = 20}) {
     final realCount = count - 3;
@@ -213,6 +221,21 @@ class Proto {
     final rResult = retR.isTimeout ? 'timeout' : retR.data.hexString;
 
     print('probeSend $hex  L: $lResult  R: $rResult');
+    return 'L: $lResult\nR: $rResult';
+  }
+
+  /// Send a raw multi-byte command to both arms and return the hex responses.
+  static Future<String> probeRaw(List<int> bytes) async {
+    final hex = bytes.map((b) => '0x${b.toRadixString(16).padLeft(2, '0').toUpperCase()}').join(' ');
+    final data = Uint8List.fromList(bytes);
+
+    final retL = await BleManager.request(data, lr: 'L', timeoutMs: 2000);
+    final lResult = retL.isTimeout ? 'timeout' : retL.data.hexString;
+
+    final retR = await BleManager.request(data, lr: 'R', timeoutMs: 2000);
+    final rResult = retR.isTimeout ? 'timeout' : retR.data.hexString;
+
+    print('probeRaw [$hex]  L: $lResult  R: $rResult');
     return 'L: $lResult\nR: $rResult';
   }
 

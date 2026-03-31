@@ -1,4 +1,5 @@
 import 'package:demo_ai_even/services/evenai.dart';
+import 'package:demo_ai_even/services/proto.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -14,6 +15,7 @@ class _SettingsPageState extends State<SettingsPage> {
   final _relayUrlController = TextEditingController();
   final _relaySecretController = TextEditingController();
   double _silenceThreshold = 2.0;
+  double _headUpAngle = 30.0;
 
   @override
   void initState() {
@@ -28,7 +30,11 @@ class _SettingsPageState extends State<SettingsPage> {
         prefs.getString('relay_url') ?? 'http://localhost:9090';
     _relaySecretController.text = prefs.getString('relay_secret') ?? '';
     final threshold = (prefs.getInt('silence_threshold') ?? 2).toDouble();
-    if (mounted) setState(() => _silenceThreshold = threshold);
+    final angle = (prefs.getInt('head_up_angle') ?? 30).toDouble();
+    if (mounted) setState(() {
+      _silenceThreshold = threshold;
+      _headUpAngle = angle;
+    });
   }
 
   Future<void> _saveSettings() async {
@@ -37,7 +43,9 @@ class _SettingsPageState extends State<SettingsPage> {
     await prefs.setString('relay_url', _relayUrlController.text.trim());
     await prefs.setString('relay_secret', _relaySecretController.text.trim());
     await prefs.setInt('silence_threshold', _silenceThreshold.round());
+    await prefs.setInt('head_up_angle', _headUpAngle.round());
     EvenAI.get.silenceThresholdSecs = _silenceThreshold.round();
+    await Proto.setHeadUpAngle(_headUpAngle.round());
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Settings saved')),
@@ -94,6 +102,17 @@ class _SettingsPageState extends State<SettingsPage> {
                 label: '${_silenceThreshold.round()}s',
                 onChanged: (value) =>
                     setState(() => _silenceThreshold = value),
+              ),
+              const SizedBox(height: 16),
+              Text('Head-Up Angle: ${_headUpAngle.round()}°'),
+              Slider(
+                value: _headUpAngle,
+                min: 10,
+                max: 60,
+                divisions: 10,
+                label: '${_headUpAngle.round()}°',
+                onChanged: (value) =>
+                    setState(() => _headUpAngle = value),
               ),
               const SizedBox(height: 24),
               ElevatedButton(
