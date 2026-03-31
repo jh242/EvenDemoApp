@@ -149,10 +149,23 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
             ]
             channel.invokeMethod("glassesConnected", arguments: connectedInfo)
 
+            saveLastConnected(
+                deviceName: deviceName,
+                leftUUID: leftPeripheral.identifier.uuidString,
+                rightUUID: rightPeripheral.identifier.uuidString
+            )
+
             currentConnectingDeviceName = nil
         }
     }
-    
+
+    private func saveLastConnected(deviceName: String, leftUUID: String, rightUUID: String) {
+        let defaults = UserDefaults.standard
+        defaults.set(deviceName, forKey: "lastDeviceName")
+        defaults.set(leftUUID, forKey: "lastLeftUUID")
+        defaults.set(rightUUID, forKey: "lastRightUUID")
+    }
+
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?){
         print("\(Date()) didDisconnectPeripheral-----peripheral-----\(peripheral)--")
         
