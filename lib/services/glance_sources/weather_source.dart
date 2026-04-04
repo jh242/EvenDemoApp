@@ -1,9 +1,11 @@
 import 'package:demo_ai_even/services/glance_source.dart';
 import 'package:dio/dio.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class WeatherSource implements GlanceSource {
+  static const _locationChannel = MethodChannel('method.location');
+
   @override
   String get name => 'weather';
 
@@ -25,9 +27,12 @@ class WeatherSource implements GlanceSource {
     if (apiKey.isEmpty) return null;
 
     // Use last known position to avoid a fresh GPS fix.
-    final position = await Geolocator.getLastKnownPosition() ??
-        await Geolocator.getCurrentPosition(
-            desiredAccuracy: LocationAccuracy.low);
+    var pos = await _locationChannel.invokeMethod<Map>('getLastKnownPosition');
+    pos ??= await _locationChannel.invokeMethod<Map>('getCurrentPosition');
+    if (pos == null) return null;
+
+    final lat = pos['latitude'] as double;
+    final lon = pos['longitude'] as double;
 
     final dio = Dio(BaseOptions(
       connectTimeout: const Duration(seconds: 5),
@@ -37,8 +42,8 @@ class WeatherSource implements GlanceSource {
     final response = await dio.get<Map<String, dynamic>>(
       'https://api.openweathermap.org/data/2.5/weather',
       queryParameters: {
-        'lat': position.latitude,
-        'lon': position.longitude,
+        'lat': lat,
+        'lon': lon,
         'appid': apiKey,
         'units': 'imperial',
       },

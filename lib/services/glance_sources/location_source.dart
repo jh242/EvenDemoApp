@@ -1,8 +1,9 @@
 import 'package:demo_ai_even/services/glance_source.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:geocoding/geocoding.dart';
+import 'package:flutter/services.dart';
 
 class LocationSource implements GlanceSource {
+  static const _channel = MethodChannel('method.location');
+
   @override
   String get name => 'location';
 
@@ -14,36 +15,39 @@ class LocationSource implements GlanceSource {
 
   @override
   Future<String?> fetch() async {
-    final permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
-      final requested = await Geolocator.requestPermission();
-      if (requested == LocationPermission.denied ||
-          requested == LocationPermission.deniedForever) {
+    try {
+      final perm = await _channel.invokeMethod<String>('checkPermission');
+      if (perm == 'notDetermined') {
+        await _channel.invokeMethod('requestPermission');
+        // Permission dialog shown — skip this cycle.
         return null;
       }
-    }
+      if (perm == 'denied') return null;
 
-    final position = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.low,
-    );
+      final pos = await _channel.invokeMethod<Map>('getCurrentPosition');
+      if (pos == null) return null;
 
-    try {
-      final placemarks = await placemarkFromCoordinates(
-        position.latitude,
-        position.longitude,
+      final lat = pos['latitude'] as double;
+      final lon = pos['longitude'] as double;
+
+      final geo = await _channel.invokeMethod<Map>(
+        'reverseGeocode',
+        {'latitude': lat, 'longitude': lon},
       );
-      if (placemarks.isNotEmpty) {
-        final p = placemarks.first;
-        final parts = [p.subLocality, p.locality, p.administrativeArea]
-            .where((s) => s != null && s.isNotEmpty);
-        return 'Location: ${parts.join(', ')}';
-      }
-    } catch (_) {
-      // Reverse geocode failed — fall back to coordinates.
-    }
 
-    return 'Location: ${position.latitude.toStringAsFixed(2)}, '
-        '${position.longitude.toStringAsFixed(2)}';
+      if (geo != null) {
+        final placeName = geo['placeName'] as String? ?? '';
+        if (placeName.isNotEmpty) {
+          return 'Location: $placeName';
+        }
+      }
+
+      return 'Location: ${lat.toStringAsFixed(2)}, ${lon.toStringAsFixed(2)}';
+    } on PlatformException catch (e) {
+      print('LocationSource error: ${e.message}');
+      return null;
+    } on MissingPluginException {
+      return null;
+    }
   }
 }
