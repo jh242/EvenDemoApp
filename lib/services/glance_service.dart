@@ -49,7 +49,6 @@ class GlanceService {
 
   // ── Timer lifecycle ────────────────────────────────────────────────
 
-  /// Start the 60 s periodic refresh. Fires immediately on first tick.
   void startTimer() {
     stopTimer();
     refresh();
@@ -58,7 +57,6 @@ class GlanceService {
     });
   }
 
-  /// Stop the background refresh timer.
   void stopTimer() {
     _refreshTimer?.cancel();
     _refreshTimer = null;
@@ -66,38 +64,53 @@ class GlanceService {
 
   // ── Refresh ────────────────────────────────────────────────────────
 
-  /// Gather data from all enabled sources, call Haiku, cache result.
   Future<void> refresh() async {
     if (_isRefreshing) return;
     _isRefreshing = true;
 
     try {
-      final snippets = <String>[];
       final now = DateTime.now();
+
+      // Partition sources into cached (still valid) and stale (need fetch).
+      final cachedSnippets = <String>[];
+      final staleSources = <GlanceSource>[];
 
       for (final source in _sources) {
         if (!source.enabled) continue;
 
-        // Check per-source cache.
         final cached = _sourceCache[source.name];
         if (cached != null &&
             source.cacheDuration > Duration.zero &&
             now.difference(cached.$2) < source.cacheDuration) {
-          snippets.add(cached.$1);
-          continue;
-        }
-
-        try {
-          final data = await source.fetch();
-          if (data != null && data.isNotEmpty) {
-            _sourceCache[source.name] = (data, now);
-            snippets.add(data);
-          }
-        } catch (e) {
-          print('GlanceSource "${source.name}" fetch error: $e');
+          cachedSnippets.add(cached.$1);
+        } else {
+          staleSources.add(source);
         }
       }
 
+      // Fetch stale sources concurrently.
+      final freshSnippets = <String>[];
+      if (staleSources.isNotEmpty) {
+        final results = await Future.wait(
+          staleSources.map((s) => s.fetch().catchError((e) {
+            print('GlanceSource "${s.name}" fetch error: $e');
+            return null;
+          })),
+        );
+
+        for (var i = 0; i < staleSources.length; i++) {
+          final data = results[i];
+          if (data != null && data.isNotEmpty) {
+            _sourceCache[staleSources[i].name] = (data, now);
+            freshSnippets.add(data);
+          }
+        }
+      }
+
+      // Skip Haiku call if nothing changed and we have cached lines.
+      if (freshSnippets.isEmpty && _cachedLines.isNotEmpty) return;
+
+      final snippets = [...cachedSnippets, ...freshSnippets];
       if (snippets.isEmpty) {
         _cachedLines = ['No data available'];
         return;
@@ -113,7 +126,6 @@ class GlanceService {
 
   // ── Display ────────────────────────────────────────────────────────
 
-  /// Show cached glance on the glasses. Instant — no network call.
   Future<void> showGlance() async {
     if (EvenAI.isRunning) return;
 
@@ -121,14 +133,9 @@ class GlanceService {
         _cachedLines.isNotEmpty ? _cachedLines : ['Glance loading...'];
     await _sendToGlasses(lines);
     isShowing = true;
-
-    _dismissTimer?.cancel();
-    _dismissTimer = Timer(const Duration(seconds: 5), () {
-      dismiss();
-    });
+    _startDismissTimer();
   }
 
-  /// Force refresh then show (for double-tap).
   Future<void> forceRefreshAndShow() async {
     if (EvenAI.isRunning) return;
 
@@ -140,22 +147,22 @@ class GlanceService {
     await _sendToGlasses(
         _cachedLines.isNotEmpty ? _cachedLines : ['No data available']);
 
-    _dismissTimer?.cancel();
-    _dismissTimer = Timer(const Duration(seconds: 5), () {
-      dismiss();
-    });
+    _startDismissTimer();
   }
 
-  /// Dismiss the glance display.
   void dismiss() {
+    if (!isShowing) return;
     _dismissTimer?.cancel();
     _dismissTimer = null;
     isShowing = false;
     Proto.exit();
   }
 
-  /// Send up to 5 lines to the glasses using the 0x4E / 0x70 text-show
-  /// protocol. Bypasses EvenAI.isRunning by calling Proto directly.
+  void _startDismissTimer() {
+    _dismissTimer?.cancel();
+    _dismissTimer = Timer(const Duration(seconds: 5), dismiss);
+  }
+
   Future<void> _sendToGlasses(List<String> lines) async {
     final measured = <String>[];
     for (final line in lines) {
@@ -178,6 +185,15 @@ class GlanceService {
   }
 
   // ── Haiku API ──────────────────────────────────────────────────────
+
+  static final _haikuDio = Dio(BaseOptions(
+    connectTimeout: const Duration(seconds: 10),
+    receiveTimeout: const Duration(seconds: 15),
+    headers: {
+      'anthropic-version': '2023-06-01',
+      'Content-Type': 'application/json',
+    },
+  ));
 
   Future<List<String>> _callHaiku(String contextData) async {
     const envKey = String.fromEnvironment('ANTHROPIC_API_KEY');
@@ -206,20 +222,11 @@ class GlanceService {
       ],
     };
 
-    final dio = Dio(BaseOptions(
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 15),
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'Content-Type': 'application/json',
-      },
-    ));
-
     try {
-      final response = await dio.post<Map<String, dynamic>>(
+      final response = await _haikuDio.post<Map<String, dynamic>>(
         'https://api.anthropic.com/v1/messages',
         data: body,
+        options: Options(headers: {'x-api-key': apiKey}),
       );
 
       final content = response.data?['content'] as List<dynamic>?;

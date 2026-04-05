@@ -5,6 +5,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class WeatherSource implements GlanceSource {
   static const _locationChannel = MethodChannel('method.location');
+  static final _dio = Dio(BaseOptions(
+    connectTimeout: const Duration(seconds: 5),
+    receiveTimeout: const Duration(seconds: 5),
+  ));
 
   @override
   String get name => 'weather';
@@ -34,12 +38,7 @@ class WeatherSource implements GlanceSource {
     final lat = pos['latitude'] as double;
     final lon = pos['longitude'] as double;
 
-    final dio = Dio(BaseOptions(
-      connectTimeout: const Duration(seconds: 5),
-      receiveTimeout: const Duration(seconds: 5),
-    ));
-
-    final response = await dio.get<Map<String, dynamic>>(
+    final response = await _dio.get<Map<String, dynamic>>(
       'https://api.openweathermap.org/data/2.5/weather',
       queryParameters: {
         'lat': lat,

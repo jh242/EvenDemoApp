@@ -2,13 +2,12 @@ import Flutter
 import CoreLocation
 
 /// Provides location and reverse-geocoding via CoreLocation, exposed to
-/// Flutter through a MethodChannel. Replaces the geolocator/geocoding
-/// pub.dev packages with a native iOS implementation.
+/// Flutter through a MethodChannel.
 class LocationChannel: NSObject, CLLocationManagerDelegate {
     static let shared = LocationChannel()
 
     private let locationManager = CLLocationManager()
-    private var pendingResult: FlutterResult?
+    private var pendingResults: [FlutterResult] = []
 
     override init() {
         super.init()
@@ -57,7 +56,7 @@ class LocationChannel: NSObject, CLLocationManagerDelegate {
             return
         }
 
-        pendingResult = result
+        pendingResults.append(result)
         locationManager.requestLocation()
     }
 
@@ -125,15 +124,21 @@ class LocationChannel: NSObject, CLLocationManagerDelegate {
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
-        pendingResult?([
+        let value: [String: Double] = [
             "latitude": location.coordinate.latitude,
             "longitude": location.coordinate.longitude,
-        ])
-        pendingResult = nil
+        ]
+        for pending in pendingResults {
+            pending(value)
+        }
+        pendingResults.removeAll()
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        pendingResult?(FlutterError(code: "LOCATION_ERROR", message: error.localizedDescription, details: nil))
-        pendingResult = nil
+        let flutterError = FlutterError(code: "LOCATION_ERROR", message: error.localizedDescription, details: nil)
+        for pending in pendingResults {
+            pending(flutterError)
+        }
+        pendingResults.removeAll()
     }
 }

@@ -3,6 +3,10 @@ import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class NewsSource implements GlanceSource {
+  static final _dio = Dio(BaseOptions(
+    connectTimeout: const Duration(seconds: 5),
+    receiveTimeout: const Duration(seconds: 5),
+  ));
   @override
   String get name => 'news';
 
@@ -23,12 +27,7 @@ class NewsSource implements GlanceSource {
 
     if (apiKey.isEmpty) return null;
 
-    final dio = Dio(BaseOptions(
-      connectTimeout: const Duration(seconds: 5),
-      receiveTimeout: const Duration(seconds: 5),
-    ));
-
-    final response = await dio.get<Map<String, dynamic>>(
+    final response = await _dio.get<Map<String, dynamic>>(
       'https://newsapi.org/v2/top-headlines',
       queryParameters: {
         'country': 'us',

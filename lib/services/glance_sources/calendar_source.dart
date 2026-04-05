@@ -2,6 +2,7 @@ import 'package:demo_ai_even/services/glance_source.dart';
 import 'package:device_calendar/device_calendar.dart';
 
 class CalendarSource implements GlanceSource {
+  static final _plugin = DeviceCalendarPlugin();
   @override
   String get name => 'calendar';
 
@@ -13,15 +14,13 @@ class CalendarSource implements GlanceSource {
 
   @override
   Future<String?> fetch() async {
-    final plugin = DeviceCalendarPlugin();
-
-    final permResult = await plugin.hasPermissions();
+    final permResult = await _plugin.hasPermissions();
     if (permResult.data != true) {
-      final reqResult = await plugin.requestPermissions();
+      final reqResult = await _plugin.requestPermissions();
       if (reqResult.data != true) return null;
     }
 
-    final calendarsResult = await plugin.retrieveCalendars();
+    final calendarsResult = await _plugin.retrieveCalendars();
     final calendars = calendarsResult.data;
     if (calendars == null || calendars.isEmpty) return null;
 
@@ -31,7 +30,7 @@ class CalendarSource implements GlanceSource {
 
     final events = <Event>[];
     for (final cal in calendars) {
-      final result = await plugin.retrieveEvents(
+      final result = await _plugin.retrieveEvents(
         cal.id,
         RetrieveEventsParams(startDate: now, endDate: endOfTomorrow),
       );
