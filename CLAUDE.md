@@ -6,11 +6,15 @@ This file gives Claude Code the context it needs to work effectively in this rep
 
 ## What this project is
 
-A Flutter (Dart) mobile app that turns **Even Realities G1 smart glasses** into
-a wearable Claude terminal.  The phone connects to the glasses over dual BLE
-(one connection per arm), streams LC3 audio from the glasses microphone, converts
-speech to text via the native platform layer, calls the Claude API, and renders
-the reply on the glasses waveguide display.
+An **iOS-only** Flutter (Dart) mobile app that turns **Even Realities G1 smart
+glasses** into a wearable Claude terminal.  The phone connects to the glasses
+over dual BLE (one connection per arm), streams LC3 audio from the glasses
+microphone, converts speech to text via the native platform layer, calls the
+Claude API, and renders the reply on the glasses waveguide display.
+
+> **Note:** Although built with Flutter, this app targets iOS exclusively.
+> Android support is not a goal.  Prefer native iOS APIs (CoreLocation, MapKit,
+> EventKit, etc.) over cross-platform pub.dev packages when possible.
 
 ---
 
@@ -18,11 +22,11 @@ the reply on the glasses waveguide display.
 
 | Layer | Technology |
 |-------|-----------|
-| App framework | Flutter / Dart (supports iOS + Android) |
+| App framework | Flutter / Dart (iOS only) |
 | State management | GetX (`get` package) |
 | HTTP client | Dio |
 | BLE ↔ Flutter bridge | `MethodChannel('method.bluetooth')` + `EventChannel` |
-| Speech-to-text | Native iOS/Android, exposed via `EventChannel(eventSpeechRecognize)` |
+| Speech-to-text | Native iOS (Speech framework), exposed via `EventChannel(eventSpeechRecognize)` |
 | Audio format | LC3 (Low Complexity Communication Codec) from glasses mic |
 | AI backend | Anthropic Claude API (`api.anthropic.com/v1/messages`) |
 | Local AI sessions | Claude Code CLI (`claude --print`) via relay server |
