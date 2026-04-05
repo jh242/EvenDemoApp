@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:demo_ai_even/ble_manager.dart';
-import 'package:demo_ai_even/services/evenai_proto.dart';
-import 'package:demo_ai_even/utils/utils.dart';
+import 'package:cogos/ble_manager.dart';
+import 'package:cogos/services/evenai_proto.dart';
+import 'package:cogos/utils/utils.dart';
 
 class Proto {
   static String lR() {
@@ -26,6 +26,14 @@ class Proto {
 
     print("Proto---micOn---startMic---$startMic-------");
     return (startMic, (!receive.isTimeout && receive.data[1] == 0xc9));
+  }
+
+  /// Disable the glasses microphone. Mirrors [micOn]; sends 0x0E 0x00 to R.
+  static Future<bool> micOff({String? lr}) async {
+    var data = Uint8List.fromList([0x0E, 0x00]);
+    var receive = await BleManager.request(data, lr: lr);
+    print("Proto---micOff---isTimeout---${receive.isTimeout}---");
+    return !receive.isTimeout && receive.data[1] == 0xc9;
   }
 
   /// Even AI

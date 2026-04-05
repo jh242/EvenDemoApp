@@ -1,5 +1,5 @@
 
-# G1 Claude Terminal
+# COGOS — Claude On Glass OS
 
 A Flutter app that turns the **Even Realities G1 smart glasses** into a
 wearable Claude terminal — voice-activated, hands-free, always available.

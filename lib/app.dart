@@ -1,7 +1,7 @@
 
 
-import 'package:demo_ai_even/services/evenai.dart';
-import 'package:demo_ai_even/services/glance_service.dart';
+import 'package:cogos/services/evenai.dart';
+import 'package:cogos/services/glance_service.dart';
 
 class App {
   static App? _instance;

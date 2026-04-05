@@ -1,10 +1,10 @@
 
-import 'package:demo_ai_even/ble_manager.dart';
-import 'package:demo_ai_even/controllers/evenai_model_controller.dart';
-import 'package:demo_ai_even/services/glance_service.dart';
-import 'package:demo_ai_even/services/notification_service.dart';
-import 'package:demo_ai_even/services/proto.dart';
-import 'package:demo_ai_even/views/home_page.dart';
+import 'package:cogos/ble_manager.dart';
+import 'package:cogos/controllers/evenai_model_controller.dart';
+import 'package:cogos/services/glance_service.dart';
+import 'package:cogos/services/notification_service.dart';
+import 'package:cogos/services/proto.dart';
+import 'package:cogos/views/home_page.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';

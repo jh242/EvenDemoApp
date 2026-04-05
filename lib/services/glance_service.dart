@@ -1,14 +1,14 @@
 import 'dart:async';
 
-import 'package:demo_ai_even/services/evenai.dart';
-import 'package:demo_ai_even/services/glance_source.dart';
-import 'package:demo_ai_even/services/glance_sources/calendar_source.dart';
-import 'package:demo_ai_even/services/glance_sources/location_source.dart';
-import 'package:demo_ai_even/services/glance_sources/news_source.dart';
-import 'package:demo_ai_even/services/glance_sources/notification_source.dart';
-import 'package:demo_ai_even/services/glance_sources/transit_source.dart';
-import 'package:demo_ai_even/services/glance_sources/weather_source.dart';
-import 'package:demo_ai_even/services/proto.dart';
+import 'package:cogos/services/evenai.dart';
+import 'package:cogos/services/glance_source.dart';
+import 'package:cogos/services/glance_sources/calendar_source.dart';
+import 'package:cogos/services/glance_sources/location_source.dart';
+import 'package:cogos/services/glance_sources/news_source.dart';
+import 'package:cogos/services/glance_sources/notification_source.dart';
+import 'package:cogos/services/glance_sources/transit_source.dart';
+import 'package:cogos/services/glance_sources/weather_source.dart';
+import 'package:cogos/services/proto.dart';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -197,11 +197,12 @@ class GlanceService {
 
   Future<List<String>> _callHaiku(String contextData) async {
     const envKey = String.fromEnvironment('ANTHROPIC_API_KEY');
-    final apiKey = envKey.isNotEmpty
-        ? envKey
-        : (await SharedPreferences.getInstance())
-                .getString('anthropic_api_key') ??
-            '';
+    final apiKey = (envKey.isNotEmpty
+            ? envKey
+            : (await SharedPreferences.getInstance())
+                    .getString('anthropic_api_key') ??
+                '')
+        .trim();
 
     if (apiKey.isEmpty) {
       return ['No API key set', 'Add key in Settings'];

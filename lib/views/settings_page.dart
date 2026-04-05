@@ -1,5 +1,5 @@
-import 'package:demo_ai_even/services/evenai.dart';
-import 'package:demo_ai_even/services/proto.dart';
+import 'package:cogos/services/evenai.dart';
+import 'package:cogos/services/proto.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

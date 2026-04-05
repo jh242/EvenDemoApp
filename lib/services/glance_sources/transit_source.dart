@@ -1,4 +1,4 @@
-import 'package:demo_ai_even/services/glance_source.dart';
+import 'package:cogos/services/glance_source.dart';
 import 'package:flutter/services.dart';
 
 /// Transit departures via Apple MapKit.

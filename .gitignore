@@ -1,4 +1,5 @@
 # Miscellaneous
+
 *.class
 *.log
 *.pyc
@@ -46,3 +47,4 @@ app.*.map.json
 /android/app/.*/*
 
 .env/
+.claude/

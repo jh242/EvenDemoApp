@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
-import 'package:demo_ai_even/ble_manager.dart';
-import 'package:demo_ai_even/controllers/evenai_model_controller.dart';
-import 'package:demo_ai_even/models/claude_session.dart';
-import 'package:demo_ai_even/services/api_claude_service.dart';
-import 'package:demo_ai_even/services/cowork_relay_service.dart';
-import 'package:demo_ai_even/services/proto.dart';
+import 'package:cogos/ble_manager.dart';
+import 'package:cogos/controllers/evenai_model_controller.dart';
+import 'package:cogos/models/claude_session.dart';
+import 'package:cogos/services/api_claude_service.dart';
+import 'package:cogos/services/cowork_relay_service.dart';
+import 'package:cogos/services/proto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -53,9 +53,11 @@ class EvenAI {
   final int startTimeGap = 500; // Filter repeated Bluetooth intervals
   final int stopTimeGap = 500;
 
-  static const _eventSpeechRecognize = "eventSpeechRecognize"; 
+  static const _eventSpeechRecognize = "eventSpeechRecognize";
   final _eventSpeechRecognizeChannel =
-      const EventChannel(_eventSpeechRecognize).receiveBroadcastStream(_eventSpeechRecognize);
+      const EventChannel(_eventSpeechRecognize)
+          .receiveBroadcastStream(_eventSpeechRecognize);
+  StreamSubscription<dynamic>? _sttSub;
 
   String combinedText = '';
 
@@ -72,14 +74,16 @@ class EvenAI {
     _textStreamController.add(newText);
   }
 
-  EvenAI._(); 
+  EvenAI._();
 
   void startListening() {
     combinedText = '';
     _lastTranscriptChange = DateTime.now();
 
-    _eventSpeechRecognizeChannel.listen((event) {
+    _sttSub?.cancel();
+    _sttSub = _eventSpeechRecognizeChannel.listen((event) {
       final txt = event['script'] as String;
+      print('EvenAI STT event: *$txt*');
       if (txt != combinedText) {
         combinedText = txt;
         _lastTranscriptChange = DateTime.now();
@@ -131,16 +135,23 @@ class EvenAI {
 
   // Monitor the recording time to prevent the recording from ending when the OS exits unexpectedly
   void startRecordingTimer() {
-    _recordingTimer = Timer(Duration(seconds: maxRecordingDuration), () {
+    _recordingTimer = Timer(Duration(seconds: maxRecordingDuration), () async {
       if (isReceivingAudio) {
         print("${DateTime.now()} Even AI startRecordingTimer-----exit-----");
+        await _shutdownMic();
         clear();
-        //Proto.exit();
       } else {
         _recordingTimer?.cancel();
         _recordingTimer = null;
       }
     });
+  }
+
+  // Single teardown for the live mic: stops the iOS recognizer and sends
+  // 0x0E 0x00 to the R arm so the glasses mic doesn't keep streaming PCM.
+  Future<void> _shutdownMic() async {
+    await BleManager.invokeMethod('stopEvenAI');
+    await Proto.micOff(lr: "R");
   }
 
   // 收到眼镜端Even AI录音结束指令
@@ -157,7 +168,7 @@ class EvenAI {
     _recordingTimer?.cancel();
     _recordingTimer = null;
 
-    await BleManager.invokeMethod('stopEvenAI');
+    await _shutdownMic();
     await Future.delayed(const Duration(seconds: 2));
 
     print('recordOverByOS combinedText: *$combinedText*');
@@ -421,8 +432,7 @@ class EvenAI {
   Future stopEvenAIByOS() async {
     isRunning = false;
     clear();
-
-    await BleManager.invokeMethod("stopEvenAI");
+    await _shutdownMic();
   }
 
   void clear() {

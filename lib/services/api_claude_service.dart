@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:demo_ai_even/models/claude_session.dart';
+import 'package:cogos/models/claude_session.dart';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -13,9 +13,12 @@ class ApiClaudeService {
   Stream<String> streamChatRequest(
       String message, ClaudeSession session) async* {
     const envKey = String.fromEnvironment('ANTHROPIC_API_KEY');
-    final apiKey = envKey.isNotEmpty
-        ? envKey
-        : (await SharedPreferences.getInstance()).getString('anthropic_api_key') ?? '';
+    final apiKey = (envKey.isNotEmpty
+            ? envKey
+            : (await SharedPreferences.getInstance())
+                    .getString('anthropic_api_key') ??
+                '')
+        .trim();
 
     final allMessages = [
       ...session.messages,

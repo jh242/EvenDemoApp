@@ -1,4 +1,4 @@
-import 'package:demo_ai_even/services/glance_source.dart';
+import 'package:cogos/services/glance_source.dart';
 import 'package:device_calendar/device_calendar.dart';
 
 class CalendarSource implements GlanceSource {

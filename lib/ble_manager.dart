@@ -1,9 +1,9 @@
 import 'dart:async';
-import 'package:demo_ai_even/app.dart';
-import 'package:demo_ai_even/services/ble.dart';
-import 'package:demo_ai_even/services/evenai.dart';
-import 'package:demo_ai_even/services/glance_service.dart';
-import 'package:demo_ai_even/services/proto.dart';
+import 'package:cogos/app.dart';
+import 'package:cogos/services/ble.dart';
+import 'package:cogos/services/evenai.dart';
+import 'package:cogos/services/glance_service.dart';
+import 'package:cogos/services/proto.dart';
 import 'package:flutter/services.dart';
 
 typedef SendResultParse = bool Function(Uint8List value);

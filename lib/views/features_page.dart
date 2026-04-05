@@ -1,8 +1,8 @@
 // ignore_for_file: library_private_types_in_public_api
 
-import 'package:demo_ai_even/views/ble_probe_page.dart';
-import 'package:demo_ai_even/views/notification_settings_page.dart';
-import 'package:demo_ai_even/views/settings_page.dart';
+import 'package:cogos/views/ble_probe_page.dart';
+import 'package:cogos/views/notification_settings_page.dart';
+import 'package:cogos/views/settings_page.dart';
 import 'package:flutter/material.dart';
 
 class FeaturesPage extends StatefulWidget {

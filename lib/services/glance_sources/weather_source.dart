@@ -1,4 +1,4 @@
-import 'package:demo_ai_even/services/glance_source.dart';
+import 'package:cogos/services/glance_source.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';

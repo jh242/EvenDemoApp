@@ -2,8 +2,8 @@
 
 import 'dart:async';
 
-import 'package:demo_ai_even/ble_manager.dart';
-import 'package:demo_ai_even/services/proto.dart';
+import 'package:cogos/ble_manager.dart';
+import 'package:cogos/services/proto.dart';
 import 'package:flutter/material.dart';
 
 class BleProbePage extends StatefulWidget {

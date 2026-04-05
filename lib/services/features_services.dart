@@ -1,8 +1,8 @@
 import 'dart:typed_data';
-import 'package:demo_ai_even/ble_manager.dart';
-import 'package:demo_ai_even/controllers/bmp_update_manager.dart';
-import 'package:demo_ai_even/services/proto.dart';
-import 'package:demo_ai_even/utils/utils.dart';
+import 'package:cogos/ble_manager.dart';
+import 'package:cogos/controllers/bmp_update_manager.dart';
+import 'package:cogos/services/proto.dart';
+import 'package:cogos/utils/utils.dart';
 
 class FeaturesServices {
   final bmpUpdateManager = BmpUpdateManager();

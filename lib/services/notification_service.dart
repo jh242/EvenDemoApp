@@ -1,8 +1,8 @@
 import 'dart:convert';
 
-import 'package:demo_ai_even/ble_manager.dart';
-import 'package:demo_ai_even/models/notify_model.dart';
-import 'package:demo_ai_even/services/proto.dart';
+import 'package:cogos/ble_manager.dart';
+import 'package:cogos/models/notify_model.dart';
+import 'package:cogos/services/proto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Manages the ANCS notification whitelist for iOS.

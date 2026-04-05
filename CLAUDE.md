@@ -1,4 +1,4 @@
-# CLAUDE.md — G1 Claude Terminal
+# CLAUDE.md — COGOS (Claude On Glass OS)
 
 This file gives Claude Code the context it needs to work effectively in this repo.
 
