@@ -138,34 +138,18 @@ final class EvenAISession: ObservableObject {
         let query = combinedText
         var fullAnswer = ""
 
-        // Try cowork relay first; fall back to direct API on offline.
-        do {
-            if let relay = settings.makeRelayClient() {
-                session.isOffline = false
-                fullAnswer = try await collect(stream: relay.stream(message: query, session: session))
-            } else {
-                throw RelayError.offline("no relay configured")
-            }
-        } catch RelayError.auth {
-            isSyncing = false
-            await startSendReply("Relay auth failed. Check secret token in settings.")
-            return
-        } catch {
-            // Offline or no relay -- use direct API
-            session.isOffline = true
-            if let client = settings.makeAnthropicClient() {
-                do {
-                    fullAnswer = try await collect(stream: client.stream(message: query, session: session))
-                } catch {
-                    isSyncing = false
-                    await startSendReply("API error: \(error.localizedDescription)")
-                    return
-                }
-            } else {
+        if let client = settings.makeAnthropicClient() {
+            do {
+                fullAnswer = try await collect(stream: client.stream(message: query, session: session))
+            } catch {
                 isSyncing = false
-                await startSendReply("No API key set. Add key in Settings.")
+                await startSendReply("API error: \(error.localizedDescription)")
                 return
             }
+        } else {
+            isSyncing = false
+            await startSendReply("No API key set. Add key in Settings.")
+            return
         }
 
         isSyncing = false
@@ -184,9 +168,7 @@ final class EvenAISession: ObservableObject {
             if !isRunning { break }
             acc.append(chunk)
         }
-        let prefix = session.isOffline ? "[OFFLINE] " : ""
-        let finalText = prefix + acc
-        await startSendReply(finalText)
+        await startSendReply(acc)
         return acc
     }
 

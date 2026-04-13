@@ -7,8 +7,6 @@ final class Settings: ObservableObject {
     private let defaults = UserDefaults.standard
 
     @Published var anthropicAPIKey: String { didSet { defaults.set(anthropicAPIKey, forKey: "anthropic_api_key") } }
-    @Published var relayURL: String { didSet { defaults.set(relayURL, forKey: "relay_url") } }
-    @Published var relaySecret: String { didSet { defaults.set(relaySecret, forKey: "relay_secret") } }
     @Published var openweatherAPIKey: String { didSet { defaults.set(openweatherAPIKey, forKey: "openweather_api_key") } }
     @Published var newsAPIKey: String { didSet { defaults.set(newsAPIKey, forKey: "news_api_key") } }
     @Published var silenceThreshold: Int { didSet { defaults.set(silenceThreshold, forKey: "silence_threshold") } }
@@ -16,8 +14,6 @@ final class Settings: ObservableObject {
 
     init() {
         self.anthropicAPIKey = defaults.string(forKey: "anthropic_api_key") ?? ""
-        self.relayURL = defaults.string(forKey: "relay_url") ?? "http://localhost:9090"
-        self.relaySecret = defaults.string(forKey: "relay_secret") ?? ""
         self.openweatherAPIKey = defaults.string(forKey: "openweather_api_key") ?? ""
         self.newsAPIKey = defaults.string(forKey: "news_api_key") ?? ""
         self.silenceThreshold = defaults.object(forKey: "silence_threshold") as? Int ?? 2
@@ -48,10 +44,5 @@ final class Settings: ObservableObject {
     func makeHaikuClient() -> HaikuClient? {
         let k = resolvedAnthropicKey
         return k.isEmpty ? nil : HaikuClient(apiKey: k)
-    }
-
-    func makeRelayClient() -> CoworkRelayClient? {
-        guard let url = URL(string: relayURL) else { return nil }
-        return CoworkRelayClient(baseURL: url, secret: relaySecret)
     }
 }

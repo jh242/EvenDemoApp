@@ -10,8 +10,6 @@ final class ClaudeSession {
     }
 
     var messages: [Message] = []
-    var relaySessionId: String?
-    var isOffline = false
     var lastQuery: String?
     var lastAnswer: String?
 
@@ -20,8 +18,6 @@ final class ClaudeSession {
 
     func reset() {
         messages.removeAll()
-        relaySessionId = nil
-        isOffline = false
         lastQuery = nil
         lastAnswer = nil
     }

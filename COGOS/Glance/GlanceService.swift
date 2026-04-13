@@ -12,7 +12,6 @@ final class GlanceService: ObservableObject {
     private var cachedLines: [String] = []
     private var sourceCache: [String: (String, Date)] = [:]
     private var refreshTimer: Task<Void, Never>?
-    private var dismissTimer: Task<Void, Never>?
     private var isRefreshing = false
 
     @Published var isShowing = false
@@ -30,7 +29,7 @@ final class GlanceService: ObservableObject {
             LocationSource(location: location),
             CalendarSource(),
             WeatherSource(settings: settings, location: location),
-            TransitSource(),
+            TransitSource(location: location),
             NotificationSource(),
             NewsSource(settings: settings)
         ]
@@ -117,7 +116,6 @@ final class GlanceService: ObservableObject {
         let lines = cachedLines.isEmpty ? ["Glance loading..."] : cachedLines
         await sendToGlasses(lines)
         isShowing = true
-        startDismissTimer()
     }
 
     func forceRefreshAndShow() async {
@@ -128,22 +126,12 @@ final class GlanceService: ObservableObject {
         await refresh()
         let lines = cachedLines.isEmpty ? ["No data available"] : cachedLines
         await sendToGlasses(lines)
-        startDismissTimer()
     }
 
     func dismiss() {
         guard isShowing else { return }
-        dismissTimer?.cancel(); dismissTimer = nil
         isShowing = false
         Task { _ = await proto.exit() }
-    }
-
-    private func startDismissTimer() {
-        dismissTimer?.cancel()
-        dismissTimer = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 5_000_000_000)
-            await MainActor.run { self?.dismiss() }
-        }
     }
 
     private func sendToGlasses(_ lines: [String]) async {

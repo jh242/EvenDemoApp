@@ -28,6 +28,10 @@ final class GestureRouter {
             if lr == "R" && !session.isReceivingAudio && !session.isRunning {
                 Task { await glance.showGlance() }
             }
+        case 0x03: // HEAD_DOWN
+            if glance.isShowing {
+                glance.dismiss()
+            }
         case 0x04, 0x05:
             session.resetSession()
         case 0x17: // TRIGGER_FOR_AI — long-press

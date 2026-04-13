@@ -68,8 +68,11 @@ final class SpeechStreamRecognizer {
 
         recognitionTask = recognizer.recognitionTask(with: req) { [weak self] result, error in
             guard let self = self else { return }
-            if let error = error {
-                print("SpeechStreamRecognizer: recognition error \(error)")
+            if let error = error as NSError? {
+                // 1110 = "No speech detected" — expected when task is cancelled
+                if error.code != 1110 {
+                    print("SpeechStreamRecognizer: recognition error \(error)")
+                }
                 return
             }
             guard let result = result else { return }

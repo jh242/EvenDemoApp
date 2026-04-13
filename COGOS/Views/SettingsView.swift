@@ -11,10 +11,6 @@ struct SettingsView: View {
                 SecureField("OpenWeatherMap API Key", text: $settings.openweatherAPIKey)
                 SecureField("NewsAPI Key", text: $settings.newsAPIKey)
             }
-            Section(header: Text("Cowork Relay")) {
-                TextField("Relay URL", text: $settings.relayURL)
-                SecureField("Relay Secret", text: $settings.relaySecret)
-            }
             Section(header: Text("Voice")) {
                 Stepper("Silence threshold: \(settings.silenceThreshold)s",
                         value: $settings.silenceThreshold, in: 1...5)

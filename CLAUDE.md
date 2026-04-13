@@ -13,7 +13,6 @@ microphone, transcribes speech via the native iOS Speech framework, calls the
 Claude API, and renders the reply on the glasses waveguide display.
 
 Pure Swift / SwiftUI. iOS 14+. Bundle ID: `com.jackhu.cogos`.
-stdlib + Apple frameworks only (no SPM, no CocoaPods).
 
 ---
 
