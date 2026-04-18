@@ -24,6 +24,16 @@ final class GlanceService: ObservableObject {
 
     private var winningSource: GlanceSource?
     private var winningSourceText: String?
+    private var lastDashboardSignature: String?
+
+    private struct CandidateResult {
+        let source: GlanceSource
+        let relevance: Int?
+        let text: String?
+        var name: String { source.name }
+        var tier: GlanceTier { source.tier }
+    }
+    private var lastCandidates: [CandidateResult] = []
 
     private let renderer = GlanceRenderer()
 
@@ -81,57 +91,105 @@ final class GlanceService: ObservableObject {
         defer { isRefreshing = false }
 
         let now = Date()
+        // Kick the iOS permission prompt on first run — weather/transit both
+        // short-circuit to nil if this never resolves to .granted.
+        if location.checkPermission() == .notDetermined {
+            location.requestPermission()
+        }
         var userLoc = location.lastKnownLocation()
         if userLoc == nil { userLoc = await location.requestLocation() }
         let ctx = GlanceContext(now: now, userLocation: userLoc)
 
-        // Fetch fixed sources (populates their cached structured data).
-        for s in sources where s.enabled && s.tier == .fixed {
-            _ = await fetchCached(s, now: now, context: ctx)
+        // Fetch every enabled source every tick so diagnostic logging can show
+        // all candidates, not just the winner. Per-source cacheDuration keeps
+        // this cheap — fresh fetches happen at most once per cache window.
+        var candidates: [CandidateResult] = []
+        for s in sources where s.enabled {
+            let rel = s.tier == .contextual ? await s.relevance(ctx) : nil
+            let text = await fetchCached(s, now: now, context: ctx)
+            candidates.append(CandidateResult(source: s, relevance: rel, text: text))
         }
+        lastCandidates = candidates
 
-        // Contextual tier — pick the most relevant source.
+        // Contextual winner = lowest-relevance source whose fetch produced
+        // text. Fall back to the first fallback source with text if none.
         winningSource = nil
         winningSourceText = nil
-        var scored: [(Int, GlanceSource)] = []
-        for s in sources where s.enabled && s.tier == .contextual {
-            if let p = await s.relevance(ctx) { scored.append((p, s)) }
-        }
-        scored.sort { $0.0 < $1.0 }
-
-        for (_, source) in scored {
-            if let text = await fetchCached(source, now: now, context: ctx) {
-                winningSource = source
-                winningSourceText = text
-                break
+        let contextualHit = candidates
+            .filter { $0.tier == .contextual }
+            .compactMap { c -> (GlanceSource, Int, String)? in
+                guard let rel = c.relevance, let text = c.text else { return nil }
+                return (c.source, rel, text)
             }
+            .min { $0.1 < $1.1 }
+        if let hit = contextualHit {
+            winningSource = hit.0
+            winningSourceText = hit.2
+        } else if let fallback = candidates.first(where: { $0.tier == .fallback && $0.text != nil }) {
+            winningSource = fallback.source
+            winningSourceText = fallback.text
         }
 
-        // Fallback tier — only if no contextual source fired.
-        if winningSource == nil {
-            for s in sources where s.enabled && s.tier == .fallback {
-                if let text = await fetchCached(s, now: now, context: ctx) {
-                    winningSource = s
-                    winningSourceText = text
-                    break
-                }
-            }
-        }
-
-        // Firmware-dashboard mode: push pinned panes each tick. Contextual
-        // sources (transit/notifications) still lack firmware pane support
-        // pending the Quick Notes sniff — see the dashboard-migration plan.
         if settings?.useFirmwareDashboard == true {
             await pushFirmwareDashboard(now: now)
         }
     }
 
     private func pushFirmwareDashboard(now: Date) async {
-        if let info = weatherSource?.lastWeatherInfo {
-            _ = await proto.setDashboardTimeAndWeather(now: now, weather: info)
+        // Always push time+weather so the clock ticks even when weather fetch
+        // has yet to succeed (location denied, wttr.in down). Firmware renders
+        // `icon=.none` with no weather icon, which is the correct empty state.
+        let info = weatherSource?.lastWeatherInfo ?? WeatherInfo(
+            icon: .none, temperatureCelsius: 0, displayFahrenheit: false, hour24: true
+        )
+        _ = await proto.setDashboardTimeAndWeather(now: now, weather: info)
+
+        let note = winningSource?.quickNote()
+        let signature = noteSignature(note)
+        let noteChanged = signature != lastDashboardSignature
+        if noteChanged {
+            // Replace-all-4-slots — slots 2..4 stay empty.
+            _ = await proto.setQuickNoteSlots([note, nil, nil, nil])
+            lastDashboardSignature = signature
         }
-        let events = calendarSource?.lastEvents ?? []
-        _ = await proto.setDashboardCalendar(events)
+
+        logPush(now: now, weather: info, note: note, noteChanged: noteChanged)
+
+        // Right-arm commit — without this firmware accepts the writes but
+        // doesn't redraw. See G1 reference `0x22 0x05`.
+        if noteChanged {
+            _ = await proto.commitDashboard()
+        }
+    }
+
+    private func noteSignature(_ note: QuickNote?) -> String {
+        guard let n = note else { return "∅" }
+        return "\(n.title)\u{1F}\(n.body)"
+    }
+
+    private func logPush(now: Date, weather: WeatherInfo, note: QuickNote?, noteChanged: Bool) {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "HH:mm:ss"
+        let timeStr = fmt.string(from: now)
+        let weatherStr = "\(weather.icon) \(weather.temperatureCelsius)°C"
+        let winnerStr = winningSource?.name ?? "—"
+        let noteTag = noteChanged ? "slot1*" : "slot1"
+        print("[dashboard] \(timeStr) | weather=\(weatherStr) | winner=\(winnerStr)")
+        for c in lastCandidates {
+            let rel = c.relevance.map(String.init) ?? "—"
+            let preview = c.text?
+                .replacingOccurrences(of: "\n", with: " ⏎ ")
+                .prefix(120) ?? "nil"
+            print("[dashboard]   [\(c.tier)] \(c.name) rel=\(rel) → \(preview)")
+        }
+        if let n = note {
+            print("[dashboard]   \(noteTag).title=\(n.title)")
+            for line in n.body.split(separator: "\n", omittingEmptySubsequences: false) {
+                print("[dashboard]     \(line)")
+            }
+        } else {
+            print("[dashboard]   \(noteTag)=nil")
+        }
     }
 
     /// Fetch a source, honoring its cacheDuration.
@@ -149,8 +207,11 @@ final class GlanceService: ObservableObject {
 
     func showGlance() async {
         guard !(session?.isRunning ?? false) else { return }
-        // Firmware mode is cadence-driven; user invokes the dashboard via
-        // firmware gestures (double-tap / head-up). Phase 2 Q2 decision.
+        // Firmware mode: head-up is handled entirely by firmware (it shows
+        // whatever dashboard the `0x08 HEAD_UP_ACTION_SET` binding specifies,
+        // which defaults to FULL). Triggering our own refresh here races with
+        // firmware's auto-show and caused a visible DUAL↔FULL flip. The 60s
+        // timer keeps data fresh in the background.
         if settings?.useFirmwareDashboard == true { return }
         await sendBitmap()
         isShowing = true

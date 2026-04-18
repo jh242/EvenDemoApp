@@ -155,6 +155,20 @@ Everything else in the [Command ID](#command-id-app--glasses) table is a top-lev
 | `0xCA` | `FAIL` |
 | `0xCB` | `DATA_CONTINUES` |
 
+**Not universal.** The `<cmd> 0xC9 …` ACK convention is used by mic (`0x0E`),
+heartbeat (`0x25`), exit (`0x18`), text display (`0x4E`), notifications
+(`0x04` / `0x4B`), and similar. It is **not** used by the dashboard families
+`0x06 DASHBOARD_SET` or `0x1E DASHBOARD_QUICK_NOTE_CONTROL`. Those two
+echo the packet header back instead — e.g. a write of
+`06 16 00 02 01 …` (time+weather) is acknowledged by
+`06 16 00 02 …` (same first-four bytes), and `1E 10 00 04 03 …` (empty
+quick-note slot) is acknowledged by `1e 10 00 04 03 01 00 01 …`. Code that
+expects `0xC9` at byte `[1]` will misclassify these as failures — the
+correct check is "did we get any response?" (and optionally, does it echo
+the command byte at `[0]`).
+
+Pinned 2026-04-18 via COGOS live captures after the dashboard-migration work.
+
 ---
 
 ## EventId (0xF5 payload byte)

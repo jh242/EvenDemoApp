@@ -83,13 +83,16 @@ actor BleRequestQueue {
         return nil
     }
 
-    /// Send to L then R, awaiting 0xC9 ack on L before R. Returns overall success.
+    /// Send to L then R and wait for responses from both. Returns true only
+    /// if both arms reply (not nil).
+    /// NOTE: the 0x06 (dashboard) and 0x1E (quick notes) command families do
+    /// NOT use the standard `<cmd> 0xC9` ACK convention — firmware echoes the
+    /// packet header back. So we only require non-nil responses; caller is
+    /// responsible for interpreting response bytes if it needs to.
     func sendBoth(_ data: Data, timeoutMs: Int = 250, retry: Int = 0) async -> Bool {
-        guard let lRes = await requestRetry(data, lr: "L", timeoutMs: timeoutMs, retry: retry) else { return false }
-        if lRes.data.count >= 2, lRes.data[1] == 0xc9 {
-            guard await requestRetry(data, lr: "R", timeoutMs: timeoutMs, retry: retry) != nil else { return false }
-        }
-        return true
+        let lRes = await requestRetry(data, lr: "L", timeoutMs: timeoutMs, retry: retry)
+        let rRes = await requestRetry(data, lr: "R", timeoutMs: timeoutMs, retry: retry)
+        return lRes != nil && rRes != nil
     }
 
     /// Sequentially send a list of packets, expecting 0xC9 / 0xCB acks on each.

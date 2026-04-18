@@ -93,10 +93,11 @@ final class AppState: ObservableObject {
                 await proto.setWearDetection(enabled: true)
                 await proto.queryBatteryAndFirmware()
                 if settings.useFirmwareDashboard {
-                    // Phase 2: configure DUAL dashboard with the calendar
-                    // pane we can populate. Quick Notes/News/Stocks panes
-                    // remain blocked on the sniff session.
-                    _ = await proto.setDashboardMode(.dual, paneMode: .calendar)
+                    // Claim DUAL + Quick Notes once at connect. The per-tick
+                    // refresh only writes Time+Weather and Quick Notes slot
+                    // contents, so firmware keeps rendering our pane choice
+                    // across the session.
+                    _ = await proto.setDashboardMode(.dual, paneMode: .quickNotes)
                 }
             }
         case .disconnected, .scanning, .connecting:

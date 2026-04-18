@@ -25,14 +25,22 @@ final class CalendarSource: GlanceSource {
     }()
 
     func relevance(_ ctx: GlanceContext) async -> Int? {
-        guard let next = await nextEventStart() else { return nil }
-        return next.timeIntervalSince(ctx.now) <= imminentEventWindow ? 0 : nil
+        guard let next = await nextEventStart() else {
+            trace("relevance: no upcoming events")
+            return nil
+        }
+        let mins = Int(next.timeIntervalSince(ctx.now) / 60)
+        if next.timeIntervalSince(ctx.now) <= imminentEventWindow {
+            trace("relevance: next event in \(mins) min → eligible")
+            return 0
+        }
+        trace("relevance: next event in \(mins) min — outside \(Int(imminentEventWindow/60))-min window")
+        return nil
     }
 
     func fetch(context: GlanceContext) async -> String? {
-        // Pull up to 8 for the firmware calendar pane (hard cap); bitmap
-        // renderer only uses the first ~3.
         guard let events = await upcomingEvents(limit: 8), !events.isEmpty else {
+            trace("no events from EventKit (access denied or empty)")
             cachedEvents = []
             lastEvents = []
             return nil
@@ -49,6 +57,15 @@ final class CalendarSource: GlanceSource {
             "- \(Self.timeFormatter.string(from: ev.startDate)) \(ev.title ?? "Untitled")"
         }
         return "Calendar:\n\(lines.joined(separator: "\n"))"
+    }
+
+    func quickNote() -> QuickNote? {
+        guard !lastEvents.isEmpty else { return nil }
+        let body = lastEvents.prefix(3).map { ev in
+            let locSuffix = ev.location.isEmpty ? "" : " @ \(ev.location)"
+            return "\(ev.timeString) \(ev.title)\(locSuffix)"
+        }.joined(separator: "\n")
+        return QuickNote(title: "Calendar", body: body)
     }
 
     func drawContent(in rect: CGRect, context: CGContext) -> Bool {

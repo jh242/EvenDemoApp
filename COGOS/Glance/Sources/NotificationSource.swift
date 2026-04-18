@@ -11,17 +11,28 @@ final class NotificationSource: GlanceSource {
 
     private static let recentWindow: TimeInterval = 10 * 60
     private var cachedNotifications: [(app: String, body: String)] = []
+    private var deliveredCache: (items: [UNNotification], at: Date)?
 
     func relevance(_ ctx: GlanceContext) async -> Int? {
-        let delivered = await Self.getDelivered()
-        guard let newest = delivered.map({ $0.date }).max() else { return nil }
-        return ctx.now.timeIntervalSince(newest) <= Self.recentWindow ? 2 : nil
+        let delivered = await deliveredFresh(now: ctx.now)
+        guard let newest = delivered.map({ $0.date }).max() else {
+            trace("relevance: 0 delivered notifications")
+            return nil
+        }
+        let ageSec = Int(ctx.now.timeIntervalSince(newest))
+        if ctx.now.timeIntervalSince(newest) <= Self.recentWindow {
+            trace("relevance: newest \(ageSec)s ago → eligible")
+            return 2
+        }
+        trace("relevance: newest \(ageSec)s ago — older than \(Int(Self.recentWindow))s window")
+        return nil
     }
 
     func fetch(context: GlanceContext) async -> String? {
-        let delivered = await Self.getDelivered()
+        let delivered = await deliveredFresh(now: context.now)
         let sorted = delivered.sorted { $0.date > $1.date }.prefix(5)
         if sorted.isEmpty {
+            trace("no delivered notifications to display")
             cachedNotifications = []
             return nil
         }
@@ -34,6 +45,17 @@ final class NotificationSource: GlanceSource {
             n.app.isEmpty ? "- \(n.body)" : "- \(n.app): \(n.body)"
         }
         return "Notifications:\n\(snippets.joined(separator: "\n"))"
+    }
+
+    func quickNote() -> QuickNote? {
+        guard !cachedNotifications.isEmpty else { return nil }
+        let title = cachedNotifications.first?.app.isEmpty == false
+            ? cachedNotifications.first!.app
+            : "Notifications"
+        let body = cachedNotifications.prefix(3).map { n in
+            n.app.isEmpty ? n.body : "\(n.app): \(n.body)"
+        }.joined(separator: "\n")
+        return QuickNote(title: title, body: body)
     }
 
     func drawContent(in rect: CGRect, context: CGContext) -> Bool {
@@ -59,6 +81,17 @@ final class NotificationSource: GlanceSource {
             if y < rect.minY + 10 { break }
         }
         return true
+    }
+
+    /// Dedupes the `relevance` + `fetch` calls within a single tick so we
+    /// only hit UNUserNotificationCenter once per GlanceService pass.
+    private func deliveredFresh(now: Date) async -> [UNNotification] {
+        if let cached = deliveredCache, now.timeIntervalSince(cached.at) < 1 {
+            return cached.items
+        }
+        let items = await Self.getDelivered()
+        deliveredCache = (items, now)
+        return items
     }
 
     private static func getDelivered() async -> [UNNotification] {

@@ -18,18 +18,36 @@ final class NewsSource: GlanceSource {
 
         var req = URLRequest(url: url)
         req.timeoutInterval = 5
-        guard let (data, response) = try? await URLSession.shared.data(for: req) else { return nil }
-        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) { return nil }
+        let pair: (Data, URLResponse)
+        do {
+            pair = try await URLSession.shared.data(for: req)
+        } catch {
+            trace("RSS fetch threw: \(error)")
+            return nil
+        }
+        let (data, response) = pair
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            trace("RSS HTTP \(http.statusCode)")
+            return nil
+        }
 
         let titles = GoogleNewsRSSParser.parseItemTitles(data)
         guard !titles.isEmpty else {
+            trace("RSS parsed 0 titles")
             cachedHeadlines = []
             return nil
         }
+        trace("RSS → \(titles.count) titles")
 
         cachedHeadlines = titles.prefix(5).map { cleanTitle($0) }
         let headlines = cachedHeadlines.prefix(3).map { "- \($0)" }
         return "News:\n\(headlines.joined(separator: "\n"))"
+    }
+
+    func quickNote() -> QuickNote? {
+        guard !cachedHeadlines.isEmpty else { return nil }
+        let body = cachedHeadlines.prefix(3).joined(separator: "\n")
+        return QuickNote(title: "News", body: body)
     }
 
     func drawContent(in rect: CGRect, context: CGContext) -> Bool {

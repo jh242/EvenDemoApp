@@ -25,7 +25,10 @@ final class TransitSource: GlanceSource {
     }
 
     func fetch(context: GlanceContext) async -> String? {
-        guard let userLoc = context.userLocation else { return nil }
+        guard let userLoc = context.userLocation else {
+            trace("no user location — skipping")
+            return nil
+        }
 
         let stations: [WTFTClient.Station]
         do {
@@ -34,15 +37,24 @@ final class TransitSource: GlanceSource {
                 lon: userLoc.coordinate.longitude
             )
         } catch {
+            trace("WTFT fetch threw: \(error)")
             return nil
         }
 
-        guard let station = stations.first,
-              let lat = station.latitude, let lon = station.longitude
-        else { return nil }
+        guard let station = stations.first else {
+            trace("WTFT returned 0 stations near \(userLoc.coordinate.latitude),\(userLoc.coordinate.longitude)")
+            return nil
+        }
+        guard let lat = station.latitude, let lon = station.longitude else {
+            trace("station \(station.name) missing coordinates")
+            return nil
+        }
 
         let distMeters = CLLocation(latitude: lat, longitude: lon).distance(from: userLoc)
-        guard distMeters <= maxStationDistance else { return nil }
+        guard distMeters <= maxStationDistance else {
+            trace("nearest station \(station.name) is \(Int(distMeters)) m — over \(Int(maxStationDistance)) m limit")
+            return nil
+        }
 
         let distStr = "\(Int(distMeters.rounded())) m"
 
@@ -64,6 +76,19 @@ final class TransitSource: GlanceSource {
         }
         let parts = cachedArrivals.map { "\($0.route)\($0.dir) \($0.mins)m" }
         return "Transit: \(station.name) (\(distStr)) · \(parts.joined(separator: ", "))"
+    }
+
+    func quickNote() -> QuickNote? {
+        guard !cachedStation.isEmpty else { return nil }
+        let body: String
+        if cachedArrivals.isEmpty {
+            body = "no arrivals"
+        } else {
+            body = cachedArrivals
+                .map { "\($0.route)\($0.dir)  \($0.mins) min" }
+                .joined(separator: "\n")
+        }
+        return QuickNote(title: cachedStation, body: body)
     }
 
     func drawContent(in rect: CGRect, context: CGContext) -> Bool {

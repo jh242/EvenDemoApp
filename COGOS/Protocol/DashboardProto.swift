@@ -10,15 +10,20 @@ enum DashboardProto {
 
     // MARK: - 0x06 0x01 TIME_AND_WEATHER
 
-    /// Fixed 21-byte packet. `seq` is caller-assigned (wraps every 256).
+    /// Fixed 22-byte packet (matches the 2026-04-17 Even-app sniff — Gadgetbridge
+    /// documents 21, but the live capture shows 22 with a trailing `0x00`).
+    /// `seq` is caller-assigned (wraps every 256).
     static func timeAndWeatherPacket(now: Date, weather: WeatherInfo, seq: UInt8) -> Data {
-        let ms = UInt64(now.timeIntervalSince1970 * 1000)
+        // Firmware renders the epoch as wall-clock in the device's own frame,
+        // so we ship local time by folding the current UTC offset into the
+        // epoch before encoding (NY in EDT otherwise shows up ~4h ahead).
+        let tzOffsetMs = Double(TimeZone.current.secondsFromGMT(for: now)) * 1000
+        let ms = UInt64(now.timeIntervalSince1970 * 1000 + tzOffsetMs)
         let secs = UInt32(ms / 1000)
 
-        // 21-byte packet. Byte 1 = total length (0x15 = 21), byte 2 = pad.
-        var pack = Data(count: 21)
+        var pack = Data(count: 22)
         pack[0] = 0x06        // DASHBOARD_SET
-        pack[1] = 0x15        // total length
+        pack[1] = 0x16        // total length = 22
         pack[2] = 0x00
         pack[3] = seq
         pack[4] = 0x01        // TIME_AND_WEATHER sub-command
@@ -33,6 +38,7 @@ enum DashboardProto {
         pack[18] = UInt8(bitPattern: weather.temperatureCelsius)
         pack[19] = weather.displayFahrenheit ? 0x01 : 0x00
         pack[20] = weather.hour24 ? 0x01 : 0x00
+        pack[21] = 0x00       // trailing pad — observed in Even-app capture
         return pack
     }
 
@@ -91,25 +97,23 @@ enum DashboardProto {
         return (packets, seq)
     }
 
-    /// Assemble the pre-chunking TLV body. Public for testing / introspection.
+    /// Assemble the pre-chunking calendar body. Layout depends on whether
+    /// there are events: the 2026-04-17 Even-app sniff pinned the empty body
+    /// as literal `00 00 02` — not a TLV form. Non-empty layout is still
+    /// unconfirmed from the sniff; we follow Gadgetbridge's `01 03 03` +
+    /// event_count + TLV entries until proven otherwise.
     static func calendarBody(_ events: [CalendarEvent]) -> Data {
-        var body = Data()
-        body.append(contentsOf: [0x01, 0x03, 0x03]) // 3-byte magic (purpose unknown per GB)
-
         let clamped = Array(events.prefix(8))
         if clamped.isEmpty {
-            // Empty-state placeholder event — matches Gadgetbridge behaviour.
-            body.append(0x01) // event_count
-            appendTLV(type: 0x01, string: "No events", into: &body)
-            appendTLV(type: 0x02, string: "", into: &body)
-            appendTLV(type: 0x03, string: "", into: &body)
-        } else {
-            body.append(UInt8(clamped.count))
-            for ev in clamped {
-                appendTLV(type: 0x01, string: ev.title, into: &body)
-                appendTLV(type: 0x02, string: ev.timeString, into: &body)
-                appendTLV(type: 0x03, string: ev.location, into: &body)
-            }
+            return Data([0x00, 0x00, 0x02])
+        }
+        var body = Data()
+        body.append(contentsOf: [0x01, 0x03, 0x03])
+        body.append(UInt8(clamped.count))
+        for ev in clamped {
+            appendTLV(type: 0x01, string: ev.title, into: &body)
+            appendTLV(type: 0x02, string: ev.timeString, into: &body)
+            appendTLV(type: 0x03, string: ev.location, into: &body)
         }
         return body
     }
@@ -117,21 +121,10 @@ enum DashboardProto {
     // MARK: - Helpers
 
     private static func appendTLV(type: UInt8, string: String, into body: inout Data) {
-        let utf8 = truncatedUTF8(string, max: 0xFF)
+        let utf8 = string.utf8Truncated(max: 0xFF)
         body.append(type)
         body.append(UInt8(utf8.count))
         body.append(utf8)
-    }
-
-    /// Truncate a UTF-8 string so it fits in `max` bytes without splitting a
-    /// multi-byte code point.
-    private static func truncatedUTF8(_ s: String, max: Int) -> Data {
-        let full = Data(s.utf8)
-        if full.count <= max { return full }
-        var end = max
-        // Back up past continuation bytes (10xxxxxx) so we land on a lead byte.
-        while end > 0 && (full[end] & 0xC0) == 0x80 { end -= 1 }
-        return full.prefix(end)
     }
 
     private static func writeU32LE(_ v: UInt32, into data: inout Data, at offset: Int) {

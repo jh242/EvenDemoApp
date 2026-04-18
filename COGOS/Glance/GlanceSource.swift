@@ -26,10 +26,18 @@ protocol GlanceSource: AnyObject {
     /// Return `true` if custom drawing was performed, `false` to fall back
     /// to plain text rendering of `fetch()` output.
     func drawContent(in rect: CGRect, context: CGContext) -> Bool
+
+    /// Quick Notes payload when this source wins the contextual slot. Lives
+    /// on the protocol body (not just the extension) so overrides dispatch
+    /// dynamically.
+    func quickNote() -> QuickNote?
 }
 
 extension GlanceSource {
     var tier: GlanceTier { .contextual }
     func relevance(_ ctx: GlanceContext) async -> Int? { 0 }
     func drawContent(in rect: CGRect, context: CGContext) -> Bool { false }
+    func quickNote() -> QuickNote? { nil }
+
+    func trace(_ msg: String) { print("[source:\(name)] \(msg)") }
 }

@@ -64,3 +64,12 @@ struct CalendarEvent {
     var timeString: String
     var location: String
 }
+
+/// One Quick Notes slot payload pushed via `0x1E 0x03 NOTE_TEXT_EDIT`.
+/// Firmware has 4 slots (1-based); every update rewrites all 4 — see
+/// `QuickNoteProto.setSlotsPackets` and the pinned layout in
+/// `docs/G1_PROTOCOL_REFERENCE.md`.
+struct QuickNote {
+    var title: String
+    var body: String
+}

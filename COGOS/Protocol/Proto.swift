@@ -96,10 +96,14 @@ actor Proto {
         _ = await queue.sendBoth(data)
     }
 
-    // MARK: - Firmware dashboard (0x06 family)
+    // MARK: - Firmware dashboard (0x06 + 0x1E + 0x22 0x05 families)
+    //
+    // Note on ACKs: unlike most commands, firmware does NOT respond to `0x06`
+    // (dashboard) or `0x1E` (quick notes) with the `<cmd> 0xC9` convention —
+    // it echoes the packet header back instead (e.g. `06 16 00 <seq> …` for a
+    // 22-byte time+weather write). We only check for a non-nil response and
+    // let sendBoth / per-arm loops drive both arms unconditionally.
 
-    /// Push time + weather to the firmware dashboard pane. Replaces our own
-    /// bitmap-rendered time/weather column.
     @discardableResult
     func setDashboardTimeAndWeather(now: Date = Date(), weather: WeatherInfo) async -> Bool {
         let seq = dashboardSeq; dashboardSeq = dashboardSeq &+ 1
@@ -122,10 +126,41 @@ actor Proto {
     func setDashboardCalendar(_ events: [CalendarEvent]) async -> Bool {
         let (packets, nextSeq) = DashboardProto.calendarPackets(events, startingSeq: dashboardSeq)
         dashboardSeq = nextSeq
-        // Send L then R sequentially, matching the existing 0x4E pattern.
-        let okL = await queue.requestList(packets, lr: "L")
-        guard okL else { return false }
-        return await queue.requestList(packets, lr: "R")
+        return await sendSequentialToBoth(packets, timeoutMs: 1000)
+    }
+
+    /// Write all 4 Quick Notes slots (`0x1E 0x03 NOTE_TEXT_EDIT`). Firmware
+    /// protocol is replace-all-4-slots — every update emits 4 packets, one
+    /// per slot. Entries past index 3 are ignored; missing entries use the
+    /// empty-slot template.
+    @discardableResult
+    func setQuickNoteSlots(_ slots: [QuickNote?]) async -> Bool {
+        let (packets, nextSeq) = QuickNoteProto.setSlotsPackets(slots, startingSeq: dashboardSeq)
+        dashboardSeq = nextSeq
+        return await sendSequentialToBoth(packets, timeoutMs: 1000)
+    }
+
+    /// Commit the current dashboard push. Even app sends this to the right
+    /// arm after every 0x06 / 0x1E cycle; without it the glasses accept the
+    /// packets but don't redraw. See G1 reference `0x22 0x05`.
+    @discardableResult
+    func commitDashboard() async -> Bool {
+        let seq = dashboardSeq; dashboardSeq = dashboardSeq &+ 1
+        let pack = Data([0x22, 0x05, 0x00, seq, 0x01])
+        return await queue.request(pack, lr: "R", timeoutMs: 1500) != nil
+    }
+
+    /// Send every packet to L then R, accepting any non-nil response (the
+    /// 0x06 / 0x1E families echo the header rather than sending 0xC9).
+    private func sendSequentialToBoth(_ packets: [Data], timeoutMs: Int) async -> Bool {
+        for arm in ["L", "R"] {
+            for pack in packets {
+                if await queue.request(pack, lr: arm, timeoutMs: timeoutMs) == nil {
+                    return false
+                }
+            }
+        }
+        return true
     }
 
     /// Exit to dashboard.

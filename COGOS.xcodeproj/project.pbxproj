@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		AAAA000000000000000000A1 /* DashboardTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA000000000000000000A2 /* DashboardTypes.swift */; };
+		AAAA000000000000000000B1 /* DashboardProto.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA000000000000000000B2 /* DashboardProto.swift */; };
+		AAAA000000000000000000C1 /* QuickNoteProto.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA000000000000000000C2 /* QuickNoteProto.swift */; };
 		0498D9C44DA81E21502D7D33 /* CRC32XZ.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA90A7B5FAC89F9D4548C7 /* CRC32XZ.swift */; };
 		0556F064E15DBB18C0587F6B /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66A057B9D941E76ED5381559 /* AppState.swift */; };
 		074403BC84ADF2817AB8181A /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 513AF4F1F62F74B415676ECC /* NotificationSettingsView.swift */; };
@@ -135,6 +138,9 @@
 		B73561314F90501277D6F481 /* tables.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = tables.c; sourceTree = "<group>"; };
 		B9AFB6766B48A69DC9C88BC1 /* SpeechStreamRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechStreamRecognizer.swift; sourceTree = "<group>"; };
 		BE717038BC69FDB4A0412449 /* Proto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Proto.swift; sourceTree = "<group>"; };
+		AAAA000000000000000000A2 /* DashboardTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardTypes.swift; sourceTree = "<group>"; };
+		AAAA000000000000000000B2 /* DashboardProto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardProto.swift; sourceTree = "<group>"; };
+		AAAA000000000000000000C2 /* QuickNoteProto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickNoteProto.swift; sourceTree = "<group>"; };
 		C1D0D2FE1E187AE694EF3902 /* EvenAIProto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvenAIProto.swift; sourceTree = "<group>"; };
 		C5FFC7DA5A8E8B87E1363FF0 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		C61D7BA975878446A88FAFE2 /* ltpf.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = ltpf.c; sourceTree = "<group>"; };
@@ -238,8 +244,11 @@
 			children = (
 				9C50FD2C5B444E5B4D0E897F /* BmpTransfer.swift */,
 				8EAA90A7B5FAC89F9D4548C7 /* CRC32XZ.swift */,
+				AAAA000000000000000000B2 /* DashboardProto.swift */,
+				AAAA000000000000000000A2 /* DashboardTypes.swift */,
 				C1D0D2FE1E187AE694EF3902 /* EvenAIProto.swift */,
 				BE717038BC69FDB4A0412449 /* Proto.swift */,
+				AAAA000000000000000000C2 /* QuickNoteProto.swift */,
 			);
 			path = Protocol;
 			sourceTree = "<group>";
@@ -422,6 +431,8 @@
 				C8D8985F38C6DA2B0D52084F /* COGOSApp.swift in Sources */,
 				0498D9C44DA81E21502D7D33 /* CRC32XZ.swift in Sources */,
 				126BDE5DF41E376DD054E8D6 /* CalendarSource.swift in Sources */,
+				AAAA000000000000000000B1 /* DashboardProto.swift in Sources */,
+				AAAA000000000000000000A1 /* DashboardTypes.swift in Sources */,
 				422DC4839C418FCE57C178CE /* ClaudeSession.swift in Sources */,
 				1F4A6C183C2A579E75C77B21 /* ContentView.swift in Sources */,
 				4104F14EC80127E590E04977 /* EvenAIProto.swift in Sources */,
@@ -446,6 +457,7 @@
 				A35025D5C8C701702E442E14 /* NotifyModel.swift in Sources */,
 				91B016E3C356B5E3CC1B436D /* PcmConverter.m in Sources */,
 				A7F734017573D5450704E0FE /* Proto.swift in Sources */,
+				AAAA000000000000000000C1 /* QuickNoteProto.swift in Sources */,
 				F81144EEB6EDB4BF2CCA42DC /* SSEParser.swift in Sources */,
 				DDB1A32CE00905FD9971B45D /* ServiceIdentifiers.swift in Sources */,
 				C492856501DD9CBD80E2BC00 /* SessionMode.swift in Sources */,
