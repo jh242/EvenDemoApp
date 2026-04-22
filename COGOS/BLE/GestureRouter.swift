@@ -19,12 +19,14 @@ final class GestureRouter {
         let payload = data.count > 2 ? data[2] : 0
 
         switch notifyIndex {
-        case 0x00: // ACTION_DOUBLE_TAP_FOR_EXIT (legacy)
-            break
+        case 0x00:
+            // Exit scroll viewer (OEM sends this after the user is done
+            // reading a long reply). When not in a viewer, legacy no-op.
+            if session.isScrollViewerActive { session.exitScrollViewer() }
         case 0x01:
-            // ACTION_SINGLE_TAP — firmware paginates 0x54 text natively
-            // (L = prev page, R = next page). No app-side action needed.
-            break
+            // Single tap. In the 0x54 scroll viewer: L = prev page,
+            // R = next page. Outside the viewer: no-op.
+            if session.isScrollViewerActive { session.advanceScrollPage(direction: lr) }
         case 0x02, 0x03:
             // ACTION_HEAD_UP / ACTION_HEAD_DOWN — firmware renders the
             // dashboard on head-up from the latched state we refresh each
