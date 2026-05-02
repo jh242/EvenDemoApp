@@ -117,6 +117,9 @@ actor Proto {
     func setDashboardTimeAndWeather(now: Date = Date(), weather: WeatherInfo) async -> Bool {
         let seq = dashboardSeq; dashboardSeq = dashboardSeq &+ 1
         let pack = DashboardProto.timeAndWeatherPacket(now: now, weather: weather, seq: seq)
+        let hour = Calendar.current.component(.hour, from: now)
+        let ts = Int(now.timeIntervalSince1970)
+        print("[dashboard/time] localHour=\(hour) epochSec=\(ts) hour24Byte=1")
         return await queue.sendBoth(pack)
     }
 
