@@ -37,7 +37,8 @@ enum DashboardProto {
         // Int8 temperature — encode two's complement into UInt8.
         pack[18] = UInt8(bitPattern: weather.temperatureCelsius)
         pack[19] = weather.displayFahrenheit ? 0x01 : 0x00
-        pack[20] = weather.hour24 ? 0x01 : 0x00
+        // Force 24-hour format for dashboard rendering.
+        pack[20] = 0x01
         pack[21] = 0x00       // trailing pad — observed in Even-app capture
         return pack
     }
