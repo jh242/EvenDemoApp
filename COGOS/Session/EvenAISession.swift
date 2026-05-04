@@ -14,7 +14,7 @@ final class EvenAISession: ObservableObject {
     @Published var isRunning = false
     @Published var isReceivingAudio = false
     @Published var isSyncing = false
-    @Published var dynamicText: String = "Press and hold left TouchBar to engage Even AI."
+    @Published var dynamicText: String = "Hold the left TouchBar to ask COGOS a question."
     @Published var mode: SessionMode = .chat
 
     // MARK: - Collaborators
@@ -125,9 +125,9 @@ final class EvenAISession: ObservableObject {
         try? await Task.sleep(nanoseconds: 2_000_000_000)
 
         if combinedText.isEmpty {
-            dynamicText = "No Speech Recognized"
+            dynamicText = "No speech recognized. Try asking again."
             isSyncing = false
-            await pushReply("No Speech Recognized")
+            await pushReply("No speech recognized. Try asking again.")
             return
         }
 

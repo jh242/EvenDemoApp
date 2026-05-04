@@ -1,19 +1,22 @@
 import SwiftUI
 
+/// Retained for compatibility with older navigation paths. The primary app
+/// shell now uses tabs in `ContentView` and does not present this screen.
 struct FeaturesView: View {
     var body: some View {
-        VStack(spacing: 12) {
-            NavigationLink("Settings", destination: SettingsView()).buttonStyle(.plain)
-                .frame(maxWidth: .infinity).frame(height: 60).background(Color(.secondarySystemBackground).cornerRadius(5))
-            NavigationLink("Notifications", destination: NotificationSettingsView()).buttonStyle(.plain)
-                .frame(maxWidth: .infinity).frame(height: 60).background(Color(.secondarySystemBackground).cornerRadius(5))
-            NavigationLink("BLE Probe", destination: BleProbeView()).buttonStyle(.plain)
-                .frame(maxWidth: .infinity).frame(height: 60).background(Color(.secondarySystemBackground).cornerRadius(5))
-            NavigationLink("Text Send", destination: TextEntryView()).buttonStyle(.plain)
-                .frame(maxWidth: .infinity).frame(height: 60).background(Color(.secondarySystemBackground).cornerRadius(5))
-            Spacer()
+        List {
+            NavigationLink {
+                SettingsView()
+            } label: {
+                Label("Settings", systemImage: "gearshape")
+            }
+
+            NavigationLink {
+                NotificationSettingsView()
+            } label: {
+                Label("Notifications", systemImage: "bell.badge")
+            }
         }
-        .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 44)
-        .navigationTitle("Features")
+        .navigationTitle("More")
     }
 }

@@ -6,45 +6,75 @@ struct NotificationSettingsView: View {
     @State private var newAppId: String = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("App whitelist (empty = all apps)")
-                .font(.system(size: 13)).foregroundColor(.gray)
-            if whitelist.appIds.isEmpty {
-                Text("No apps in whitelist.\nAll notifications will be forwarded.")
-                    .multilineTextAlignment(.center).foregroundColor(.gray)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                List {
+        Form {
+            Section {
+                if whitelist.appIds.isEmpty {
+                    ContentUnavailableView {
+                        Label("All Apps Allowed", systemImage: "bell")
+                    } description: {
+                        Text("Add app bundle identifiers if you only want notifications from specific apps forwarded to your glasses.")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .listRowBackground(Color.clear)
+                } else {
                     ForEach(whitelist.appIds, id: \.self) { id in
-                        HStack {
-                            Text(id).font(.system(size: 14))
+                        HStack(spacing: 12) {
+                            Image(systemName: "app.badge")
+                                .foregroundStyle(.tint)
+                            Text(id)
+                                .font(.body.monospaced())
                             Spacer()
-                            Button(action: { remove(id) }) {
-                                Image(systemName: "trash").foregroundColor(.red)
-                            }.buttonStyle(.plain)
+                        }
+                        .swipeActions {
+                            Button(role: .destructive) {
+                                remove(id)
+                            } label: {
+                                Label("Remove", systemImage: "trash")
+                            }
                         }
                     }
-                }.listStyle(.plain)
+                }
+            } header: {
+                Text("Forwarded Apps")
+            } footer: {
+                Text("Leave the list empty to forward notifications from all apps.")
             }
-            HStack {
-                TextField("com.example.app", text: $newAppId).padding(.horizontal, 12)
-                    .frame(height: 44).background(Color(.secondarySystemBackground).cornerRadius(5))
-                Button("Add") { add() }
-                    .padding(.horizontal, 16).frame(height: 44).background(Color(.secondarySystemBackground).cornerRadius(5))
-                    .buttonStyle(.plain)
+
+            Section {
+                TextField("com.example.app", text: $newAppId)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                Button {
+                    add()
+                } label: {
+                    Label("Add App", systemImage: "plus.circle.fill")
+                }
+                .disabled(trimmedNewAppId.isEmpty || whitelist.appIds.contains(trimmedNewAppId))
+            } header: {
+                Text("Add App")
+            } footer: {
+                Text("Use the app’s bundle identifier, for example `com.apple.MobileSMS`.")
             }
-            Button("Push whitelist to glasses") {
-                Task { await whitelist.pushToGlasses(proto: appState.proto) }
+
+            Section {
+                Button {
+                    Task { await whitelist.pushToGlasses(proto: appState.proto) }
+                } label: {
+                    Label("Sync Notification Settings", systemImage: "arrow.triangle.2.circlepath")
+                }
+            } footer: {
+                Text("COGOS also syncs this list when your glasses connect.")
             }
-            .frame(maxWidth: .infinity).frame(height: 44).background(Color(.secondarySystemBackground).cornerRadius(5))
-            .buttonStyle(.plain)
         }
-        .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 44)
-        .navigationTitle("Notification Settings")
+        .navigationTitle("Notifications")
+    }
+
+    private var trimmedNewAppId: String {
+        newAppId.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func add() {
-        let id = newAppId.trimmingCharacters(in: .whitespaces)
+        let id = trimmedNewAppId
         guard !id.isEmpty, !whitelist.appIds.contains(id) else { return }
         whitelist.set(whitelist.appIds + [id])
         newAppId = ""

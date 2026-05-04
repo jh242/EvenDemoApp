@@ -6,32 +6,51 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section(header: Text("LLM Endpoint")) {
+            Section {
                 TextField("Base URL", text: $settings.baseURL)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                    .keyboardType(.URL)
                 TextField("Model", text: $settings.model)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                 SecureField("API Key", text: $settings.apiKey)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
                 Toggle("Stream responses", isOn: $settings.useStreaming)
+            } header: {
+                Text("Assistant Endpoint")
+            } footer: {
+                Text("COGOS works with OpenAI-compatible chat completions endpoints.")
             }
-            Section(header: Text("Voice")) {
-                Stepper("Silence threshold: \(settings.silenceThreshold)s",
-                        value: $settings.silenceThreshold, in: 1...5)
+
+            Section {
+                Stepper(value: $settings.silenceThreshold, in: 1...5) {
+                    LabeledContent("Silence detection", value: "\(settings.silenceThreshold)s")
+                }
+            } header: {
+                Text("Voice")
+            } footer: {
+                Text("COGOS sends your question after this many seconds of silence.")
             }
-            Section(header: Text("Head-up")) {
-                Stepper("Angle: \(settings.headUpAngle)°",
-                        value: $settings.headUpAngle, in: 10...60, step: 5)
-                    .onChange(of: settings.headUpAngle) { new in
-                        Task { await appState.proto.setHeadUpAngle(new) }
-                    }
+
+            Section {
+                Stepper(value: $settings.headUpAngle, in: 10...60, step: 5) {
+                    LabeledContent("Head-up angle", value: "\(settings.headUpAngle)°")
+                }
+                .onChange(of: settings.headUpAngle) { new in
+                    Task { await appState.proto.setHeadUpAngle(new) }
+                }
+            } header: {
+                Text("Gestures")
             }
-            Section(header: Text("Display")) {
+
+            Section {
                 Toggle("Auto brightness", isOn: $settings.autoBrightness)
                     .onChange(of: settings.autoBrightness) { _ in pushBrightness() }
-                HStack {
-                    Text("Brightness")
+
+                VStack(alignment: .leading, spacing: 8) {
+                    LabeledContent("Brightness", value: "\(settings.brightness)")
                     Slider(
                         value: Binding(
                             get: { Double(settings.brightness) },
@@ -43,7 +62,19 @@ struct SettingsView: View {
                             if !editing { pushBrightness() }
                         }
                     )
-                    Text("\(settings.brightness)").monospacedDigit().frame(width: 28, alignment: .trailing)
+                    .disabled(settings.autoBrightness)
+                }
+            } header: {
+                Text("Display")
+            } footer: {
+                Text("Brightness changes are sent to connected glasses.")
+            }
+
+            Section {
+                NavigationLink {
+                    NotificationSettingsView()
+                } label: {
+                    Label("Notifications", systemImage: "bell.badge")
                 }
             }
         }
