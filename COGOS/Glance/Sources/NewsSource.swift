@@ -1,9 +1,12 @@
 import Foundation
+#if canImport(FoundationModels)
+import FoundationModels
+#endif
 
 /// Fallback provider — shows cached headlines when nothing higher-priority
-/// is eligible. Each headline is truncated to its first few words and joined
-/// with a middle-dot separator, so a full row of topline news fits the
-/// waveguide's narrow line budget.
+/// is eligible. Headlines are individually summarized with Apple's on-device
+/// Foundation model (5 words max), and entries blocked by content protections
+/// are skipped so the remaining summaries can still be displayed.
 final class NewsSource: ContextProvider {
     let name = "news"
     let priority = 3
@@ -11,12 +14,13 @@ final class NewsSource: ContextProvider {
     private static let refreshInterval: TimeInterval = 30 * 60
     private static let separator = " · "
     private static let maxHeadlines = 4
-    private static let wordsPerHeadline = 3
+    private static let wordsPerHeadline = 5
 
     var topic: String = "BUSINESS"
 
     private var lastFetch: Date?
     private var displayBody: String = ""
+    private let summarizer = HeadlineSummarizer()
 
     var currentNote: QuickNote? {
         guard !displayBody.isEmpty else { return nil }
@@ -52,14 +56,21 @@ final class NewsSource: ContextProvider {
             trace("RSS parsed 0 titles")
             return
         }
-        let shortened = titles.prefix(Self.maxHeadlines).map { shorten(cleanTitle($0)) }
-        displayBody = shortened.filter { !$0.isEmpty }.joined(separator: Self.separator)
-        trace("RSS → \(shortened.count) headlines → \"\(displayBody)\"")
-    }
 
-    private func shorten(_ headline: String) -> String {
-        let words = headline.split(whereSeparator: \.isWhitespace).prefix(Self.wordsPerHeadline)
-        return words.joined(separator: " ")
+        var shortened: [String] = []
+        for title in titles.prefix(Self.maxHeadlines) {
+            let clean = cleanTitle(title)
+            guard !clean.isEmpty else { continue }
+
+            if let summary = await summarizer.summarize(clean, maxWords: Self.wordsPerHeadline), !summary.isEmpty {
+                shortened.append(summary)
+            } else {
+                trace("Skipped headline due to model/content protection: \(clean)")
+            }
+        }
+
+        displayBody = shortened.joined(separator: Self.separator)
+        trace("RSS → \(shortened.count) headlines → \"\(displayBody)\"")
     }
 
     private func cleanTitle(_ raw: String) -> String {
@@ -71,6 +82,36 @@ final class NewsSource: ContextProvider {
     }
 
     private func trace(_ msg: String) { print("[news] \(msg)") }
+}
+
+private actor HeadlineSummarizer {
+    func summarize(_ headline: String, maxWords: Int) async -> String? {
+#if canImport(FoundationModels)
+        if #available(iOS 26.0, *) {
+            do {
+                let session = LanguageModelSession()
+                let prompt = """
+                Summarize this news headline in \(maxWords) words or fewer.
+                Output only the summary phrase with no punctuation at the end.
+
+                Headline: \(headline)
+                """
+                let response = try await session.respond(to: prompt)
+                return trimToWordLimit(response.content, maxWords: maxWords)
+            } catch {
+                return nil
+            }
+        }
+#endif
+        return trimToWordLimit(headline, maxWords: maxWords)
+    }
+
+    private func trimToWordLimit(_ text: String, maxWords: Int) -> String {
+        text
+            .split(whereSeparator: \.isWhitespace)
+            .prefix(maxWords)
+            .joined(separator: " ")
+    }
 }
 
 /// Minimal XMLParserDelegate that collects the text of <title> elements nested inside <item>.
